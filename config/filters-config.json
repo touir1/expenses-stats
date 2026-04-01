@@ -1,0 +1,48 @@
+{
+  "filters": {
+    "car": {
+      "description": "Car-related expenses (repairs, maintenance, insurance)",
+      "category": "car"
+    },
+    "eur": {
+      "description": "EUR currency only",
+      "filters": {
+        "currency_code": {
+          "eq": "EUR"
+        }
+      }
+    },
+    "tnd": {
+      "description": "TND currency only",
+      "filters": {
+        "currency_code": {
+          "eq": "TND"
+        }
+      }
+    },
+    "high_value": {
+      "description": "Expenses over 100 EUR / 350 TND",
+      "filters": {
+        "amount": {
+          "gte": 100
+        }
+      }
+    },
+    "low_value": {
+      "description": "Expenses under 50 EUR / 175 TND",
+      "filters": {
+        "amount": {
+          "lt": 50
+        }
+      }
+    },
+    "food": {
+      "description": "All food-related expenses",
+      "category": "food"
+    },
+    "transport": {
+      "description": "All transport-related expenses",
+      "category": "transport"
+    }
+  }
+}

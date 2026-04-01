@@ -1,0 +1,8 @@
+{
+  "description": "TND currency only",
+  "filters": {
+    "currency_code": {
+      "eq": "TND"
+    }
+  }
+}
