@@ -244,14 +244,25 @@ function checkForcedCategory(row, columnMap, forcedList) {
   if (!('description' in columnMap)) return null;
   
   const descriptionValue = row[columnMap['description']] ? row[columnMap['description']].trim().toLowerCase() : '';
-  
+  if (!descriptionValue) return null;
+
+  // Score each matching forced entry by coverage: how much of the description the pattern covers
+  // The longest (most specific) matching pattern wins
+  let bestMatch = null;
+  let bestScore = -1;
+
   for (const forced of forcedList) {
-    // Check if description contains the forced pattern
-    if (forced.description && descriptionValue.includes(forced.description.toLowerCase())) {
-      return forced.category;
+    if (!forced.description) continue;
+    const pattern = forced.description.toLowerCase();
+    if (!descriptionValue.includes(pattern)) continue;
+
+    const score = pattern.length / descriptionValue.length;
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = forced.category;
     }
   }
-  return null;
+  return bestMatch;
 }
 
 // Recursively assign hierarchical category label
