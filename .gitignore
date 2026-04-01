@@ -5,6 +5,9 @@ node_modules/
 data/
 output/
 
+# Configuration files
+config/forced-categories.json
+
 # Environment variables
 .env
 .env.local
