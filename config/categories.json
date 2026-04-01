@@ -77,7 +77,14 @@
     {
       "name": "clothing",
       "subcategories": [
-        { "name": "misc", "filters": { "description": { "tokens": ["boxers", "boxer", "tshirt", "t shirt", "t-shirt", "pantalon", "pantalons", "chaussure", "chaussures", "veste", "chaussette", "chaussettes", "pyjama", "habit", "vetement", "fring", "chemise", "pull", "jean", "manteau", "sous-vetement", "calceon", "cape", "gilet", "ceinture", "elastique", "collant", "echarpe", "foulard", "bandeau", "turban", "keswa", "coat", "scarf", "polo", "sbedri", "puma", "gant", "gants", "crookies", "maryoul", "parapluie", "exist", "7weyej", "clothes", "klaset", "socks", "mrewel"] } } }
+        { "name": "underwear", "filters": { "description": { "tokens": ["boxers", "boxer", "tshirt", "t shirt", "t-shirt", "calceon", "sous-vetement", "pyjama"] } } },
+        { "name": "pants", "filters": { "description": { "tokens": ["pantalon", "pantalons", "jean"] } } },
+        { "name": "shoes", "filters": { "description": { "tokens": ["chaussure", "chaussures", "mrewel"] } } },
+        { "name": "tops", "filters": { "description": { "tokens": ["chemise", "pull", "polo", "sbedri", "habit"] } } },
+        { "name": "outerwear", "filters": { "description": { "tokens": ["veste", "manteau", "coat", "cape", "gilet", "jacket"] } } },
+        { "name": "hosiery", "filters": { "description": { "tokens": ["chaussette", "chaussettes", "collant", "socks"] } } },
+        { "name": "accessories", "filters": { "description": { "tokens": ["ceinture", "elastique", "gant", "gants", "crookies", "parapluie", "foulard", "echarpe", "scarf", "bandeau", "turban", "keswa", "maryoul"] } } },
+        { "name": "misc", "filters": { "description": { "tokens": ["vetement", "fring", "klase", "klaset", "exist", "7weyej", "clothes", "puma"] } } }
       ]
     },
     {
@@ -94,7 +101,12 @@
     {
       "name": "fees",
       "subcategories": [
-        { "name": "misc", "filters": { "description": { "tokens": ["frais", "commission", "virement", "moneygram", "boursorama", "passeport", "8lef", "baladeya", "notaire", "administratif", "cotisation", "facture", "prelevement", "total", "energie", "energies", "la", "poste", "timbre", "envoie", "envoi", "lettre", "express", "transfer", "paiement", "pressing", "lavage", "femme", "menage", "coiffeur", "salon", "service", "reparation", "tuning", "cinema", "parking", "permis", "serrurier", "photocopie", "imprimerie", "compte", "taskir", "convertie", "convert", "certificat", "copie", "declaration", "devise", "badge", "mefte7", "copies", "visa", "signature", "diwena", "border police", "enveloppe", "envelope", "fix charka", "fixing necklace", "imprim docs impots", "printing taxes", "tsawer", "tourist tax", "tip", "salle7 tel", "madhmoun"] } } }
+        { "name": "administrative", "filters": { "description": { "tokens": ["passeport", "8lef", "baladeya", "notaire", "administratif", "certificat", "copie", "declaration", "devise", "badge", "mefte7", "copies", "visa", "signature", "diwena", "border police"] } } },
+        { "name": "financial", "filters": { "description": { "tokens": ["frais", "commission", "virement", "moneygram", "boursorama", "prelevement", "transfer", "paiement", "compte", "taskir", "convertie", "convert"] } } },
+        { "name": "utilities", "filters": { "description": { "tokens": ["facture", "energie", "energies", "cotisation", "total"] } } },
+        { "name": "postal", "filters": { "description": { "tokens": ["la", "poste", "timbre", "envoie", "envoi", "lettre", "express", "enveloppe", "envelope"] } } },
+        { "name": "services", "filters": { "description": { "tokens": ["pressing", "lavage", "femme", "menage", "coiffeur", "salon", "service", "reparation", "tuning", "serrurier", "photocopie", "imprimerie", "fix charka", "fixing necklace", "imprim docs impots", "printing taxes"] } } },
+        { "name": "misc", "filters": { "description": { "tokens": ["cinema", "parking", "permis", "tsawer", "tourist tax", "tip", "salle7 tel", "madhmoun"] } } }
       ]
     },
     {
