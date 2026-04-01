@@ -1,0 +1,45 @@
+{
+  "name": "depenses-stats",
+  "version": "1.0.0",
+  "description": "Expense analysis tool with categorization, filtering, and statistics generation",
+  "main": "src/scripts/pipeline.js",
+  "type": "commonjs",
+  "scripts": {
+    "pipeline": "node src/scripts/pipeline.js",
+    "pipeline:help": "node src/scripts/pipeline.js --help",
+    "pipeline:quick": "node src/scripts/pipeline.js --skip-parsing",
+    "pipeline:car": "node src/scripts/pipeline.js --filter car",
+    "pipeline:eur": "node src/scripts/pipeline.js --filter eur",
+    "pipeline:tnd": "node src/scripts/pipeline.js --filter tnd",
+    "pipeline:food": "node src/scripts/pipeline.js --filter food",
+    "pipeline:transport": "node src/scripts/pipeline.js --filter transport",
+    "pipeline:date-range": "node src/scripts/pipeline-date-range.js",
+    "pipeline:date-range:help": "node src/scripts/pipeline-date-range.js --help",
+    "parse": "node src/scripts/parser.js",
+    "parse:help": "node src/scripts/parser.js --help",
+    "label": "node src/scripts/label.js",
+    "label:help": "node src/scripts/label.js --help",
+    "filter": "node src/scripts/filter.js",
+    "filter:help": "node src/scripts/filter.js --help",
+    "filter:date-range": "node src/scripts/filter.js",
+    "stats": "node src/scripts/stats.js",
+    "stats:help": "node src/scripts/stats.js --help",
+    "category-details": "node src/scripts/category-details.js",
+    "category-details:help": "node src/scripts/category-details.js --help",
+    "list:other": "node src/scripts/list_other.js",
+    "update-rates": "node src/scripts/update-rates.js",
+    "update-rates:help": "node src/scripts/update-rates.js --help"
+  },
+  "keywords": [
+    "expenses",
+    "statistics",
+    "categorization",
+    "filtering",
+    "currency-conversion"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
