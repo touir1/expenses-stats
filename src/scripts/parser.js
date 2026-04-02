@@ -1,15 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const { parseArgs } = require('../utils/cli-args');
 const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
 const { logSuccess, logError } = require('../utils/console-output');
-
-// Generate a hash for transaction identification (description + currency + amount)
-function hashExpense(description, currencyCode, amount) {
-  const str = `${description}|${currencyCode}|${amount}`;
-  return crypto.createHash('sha256').update(str).digest('hex').slice(0, 16);
-}
+const { hashExpense } = require('../utils/hash');
 
 // Parse command-line arguments
 const optionDefs = [

@@ -29,7 +29,7 @@ const optionDefs = [
   { flag: '--forced-categories-file', param: true, default: null },
   { flag: '--conversion-rates-file', param: true, default: null },
   { flag: '--database', param: true, default: null },
-  { flag: '--delete-all', param: false }
+  { flag: '--reset-database', param: false }
 ];
 
 const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
@@ -45,12 +45,12 @@ Options:
   --forced-categories-file <path>  Forced categories file (default: config/forced-categories.json)
   --conversion-rates-file <path>   Conversion rates CSV file (default: config/conversion_rates.csv)
   --database <path>                SQLite database file (default: data/database/depenses.db)
-  --delete-all                     Delete all data and recreate the tables
+  --reset-database                 Delete all data and recreate the tables
   -h, --help                      Show this help message
 
 Examples:
   node db-insert.js --input-file data/processed/depenses-labeled.csv --database data/depenses.db
-  node db-insert.js --delete-all --database data/depenses.db
+  node db-insert.js --reset-database --database data/depenses.db
 `);
   process.exit(0);
 }
@@ -63,7 +63,7 @@ const categoryPatternsFile = resolvePath(parsedArgs['category-patterns-file'], d
 const forcedCategoriesFile = resolvePath(parsedArgs['forced-categories-file'], defaults.forcedCategoriesFile);
 const conversionRatesFile = resolvePath(parsedArgs['conversion-rates-file'], defaults.conversionRatesFile);
 const databaseFile = resolvePath(parsedArgs['database'], defaults.databaseFile);
-const deleteAll = parsedArgs['delete-all'] || false;
+const deleteAll = parsedArgs['reset-database'] || false;
 
 // Ensure database directory exists
 ensureDir(path.dirname(databaseFile));

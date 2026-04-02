@@ -7,6 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const { parseCSVLine } = require('./csv');
+const { ensureDir } = require('./path-resolver');
 
 // ─── CSV ─────────────────────────────────────────────────────────────────────
 
@@ -76,7 +77,7 @@ function writeCSV(filePath, headers, rows) {
     ...rows.map(row => headers.map(h => escape(row[h] ?? '')).join(','))
   ];
 
-  ensureDir(filePath);
+  ensureDir(path.dirname(filePath));
   fs.writeFileSync(filePath, lines.join('\n') + '\n', 'utf-8');
 }
 
@@ -86,7 +87,7 @@ function writeCSV(filePath, headers, rows) {
  * @param {string} content
  */
 function writeCSVRaw(filePath, content) {
-  ensureDir(filePath);
+  ensureDir(path.dirname(filePath));
   fs.writeFileSync(filePath, content, 'utf-8');
 }
 
@@ -128,13 +129,6 @@ function loadCategoryPatterns(filePath) {
  * Ensure directory for a file path exists, creating it recursively if needed.
  * @param {string} filePath
  */
-function ensureDir(filePath) {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-}
-
 /**
  * Check if a file exists.
  * @param {string} filePath
@@ -152,6 +146,5 @@ module.exports = {
   readJSON,
   loadCategories,
   loadCategoryPatterns,
-  ensureDir,
   fileExists,
 };
