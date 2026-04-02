@@ -12,7 +12,7 @@ Options:
   --output-file <path>        Output CSV file (default: ../../data/processed/depenses-labeled.csv)
   --categories <json>         Categories definition as inline JSON
   --categories-file <path>    Path to JSON file defining categories (default: ../../config/categories.json)
-  --forced-categories-file <path> Path to JSON file with forced manual categorizations (default: ../../config/forced-categories.json)
+  --category-patterns-file <path> Path to JSON file with category patterns (default: ../../config/category-patterns.json)
   --category-col <name>       Name of the added column (default: category)
   --default <label>           Default label when no category matches (default: "other")
   -h, --help                 Show this help message
@@ -31,7 +31,7 @@ Categories File Format:
     ]
   }
 
-Forced Categories File Format:
+Category Patterns File Format:
   {
     "forced": [
       {
@@ -48,7 +48,7 @@ Notes:
   - Supports same operators as filter.js
 
 Example:
-  node label.js --categories-file config/categories.json --forced-categories-file config/forced-categories.json
+  node label.js --categories-file config/categories.json --category-patterns-file config/category-patterns.json
 `);
   process.exit(0);
 }
@@ -61,7 +61,7 @@ let inputFile = null;
 let outputFile = null;
 let categoriesJson = null;
 let categoriesFile = null;
-let forcedCategoriesFile = null;
+let categoryPatternsFile = null;
 let categoryColName = 'category';
 let defaultLabel = 'other';
 let separator = '/';
@@ -75,8 +75,8 @@ for (let i = 0; i < args.length; i++) {
     categoriesJson = args[i + 1]; i++;
   } else if (args[i] === '--categories-file' && args[i + 1]) {
     categoriesFile = args[i + 1]; i++;
-  } else if (args[i] === '--forced-categories-file' && args[i + 1]) {
-    forcedCategoriesFile = args[i + 1]; i++;
+  } else if (args[i] === '--category-patterns-file' && args[i + 1]) {
+    categoryPatternsFile = args[i + 1]; i++;
   } else if (args[i] === '--category-col' && args[i + 1]) {
     categoryColName = args[i + 1]; i++;
   } else if (args[i] === '--default' && args[i + 1]) {
@@ -90,20 +90,20 @@ const baseDir = path.join(__dirname, '..', '..');
 if (!inputFile) inputFile = path.join(baseDir, 'data', 'processed', 'depenses.csv');
 if (!outputFile) outputFile = path.join(baseDir, 'data', 'processed', 'depenses-labeled.csv');
 if (!categoriesFile && !categoriesJson) categoriesFile = path.join(baseDir, 'config', 'categories.json');
-if (!forcedCategoriesFile) forcedCategoriesFile = path.join(baseDir, 'config', 'forced-categories.json');
+if (!categoryPatternsFile) categoryPatternsFile = path.join(baseDir, 'config', 'category-patterns.json');
 
 if (!path.isAbsolute(inputFile)) inputFile = path.join(process.cwd(), inputFile);
 if (!path.isAbsolute(outputFile)) outputFile = path.join(process.cwd(), outputFile);
-if (!path.isAbsolute(forcedCategoriesFile)) forcedCategoriesFile = path.join(process.cwd(), forcedCategoriesFile);
+if (!path.isAbsolute(categoryPatternsFile)) categoryPatternsFile = path.join(process.cwd(), categoryPatternsFile);
 
-// Load forced categories
-let forcedCategories = [];
-if (forcedCategoriesFile && fs.existsSync(forcedCategoriesFile)) {
+// Load category patterns
+let categoryPatterns = [];
+if (categoryPatternsFile && fs.existsSync(categoryPatternsFile)) {
   try {
-    const parsed = JSON.parse(fs.readFileSync(forcedCategoriesFile, 'utf-8').replace(/^\uFEFF/, ''));
-    forcedCategories = parsed.forced || [];
+    const parsed = JSON.parse(fs.readFileSync(categoryPatternsFile, 'utf-8').replace(/^\uFEFF/, ''));
+    categoryPatterns = parsed.forced || [];
   } catch (e) {
-    console.warn('Warning: Could not read/parse forced-categories-file:', e.message);
+    console.warn('Warning: Could not read/parse category-patterns-file:', e.message);
   }
 }
 
@@ -315,9 +315,9 @@ try {
 
   for (let i = 1; i < lines.length; i++) {
     const parts = lines[i].split(',');
-    // Check forced categories first
-    const forcedLabel = checkForcedCategory(parts, columnMap, forcedCategories);
-    const label = forcedLabel || assignCategory(parts, columnMap, categoryDefs, '') || defaultLabel;
+    // Check category patterns first
+    const patternLabel = checkForcedCategory(parts, columnMap, categoryPatterns);
+    const label = patternLabel || assignCategory(parts, columnMap, categoryDefs, '') || defaultLabel;
     tally[label] = (tally[label] || 0) + 1;
     outputLines.push(lines[i] + ',' + label);
   }
