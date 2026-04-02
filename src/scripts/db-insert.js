@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
-const { parseCSVLine } = require('../utils/csv');
+const { readCSV, loadCategories, fileExists, ensureDir } = require('../utils/data');
 
 const args = process.argv.slice(2);
 
@@ -55,8 +55,8 @@ if (!path.isAbsolute(databaseFile)) databaseFile = path.join(process.cwd(), data
 
 // Ensure database directory exists
 const dbDir = path.dirname(databaseFile);
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+ensureDir(dbDir);
+if (!fs.existsSync(dbDir + '/.gitkeep') && !fs.existsSync(databaseFile)) {
   console.log(`✓ Created directory: ${dbDir}`);
 }
 
@@ -262,26 +262,7 @@ function loadCategories(filePath) {
 function readCsvFile(filePath) {
   return new Promise((resolve, reject) => {
     try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const lines = content.split('\n').filter(l => l.trim());
-
-      if (lines.length < 1) {
-        reject(new Error('CSV file is empty'));
-        return;
-      }
-
-      const headers = parseCSVLine(lines[0]).map(h => h.trim());
-      const rows = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        const parts = parseCSVLine(lines[i]).map(p => p.trim());
-        const row = {};
-        headers.forEach((h, idx) => {
-          row[h] = parts[idx] || '';
-        });
-        rows.push(row);
-      }
-
+      const { rows } = readCSV(filePath);
       console.log(`✓ Read ${rows.length} rows from CSV`);
       resolve(rows);
     } catch (err) {
@@ -344,7 +325,7 @@ async function main() {
     await initializeDatabase();
 
     // Load categories from JSON — only if table is empty or --delete-all was used
-    if (!fs.existsSync(categoriesFile)) {
+    if (!fileExists(categoriesFile)) {
       throw new Error(`Categories file not found: ${categoriesFile}`);
     }
     const catCount = await new Promise((resolve, reject) => {
@@ -367,7 +348,7 @@ async function main() {
     }
 
     // Read CSV
-    if (!fs.existsSync(inputFile)) {
+    if (!fileExists(inputFile)) {
       throw new Error(`Input file not found: ${inputFile}`);
     }
 

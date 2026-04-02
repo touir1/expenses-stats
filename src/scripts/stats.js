@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
-const { parseCSVLine } = require('../utils/csv');
 const { loadConversionRates, getRateForDate } = require('../utils/conversion-rates');
+const { readCSV, fileExists } = require('../utils/data');
 
 // Parse command-line arguments
 const args = process.argv.slice(2);
@@ -82,25 +82,22 @@ if (!path.isAbsolute(conversionRatesFile)) {
 }
 
 // Load conversion rates
-const conversionRates = fs.existsSync(conversionRatesFile) ? loadConversionRates(conversionRatesFile) : {};
+const conversionRates = fileExists(conversionRatesFile) ? loadConversionRates(conversionRatesFile) : {};
 
 // Read and parse CSV
-const content = fs.readFileSync(inputFile, 'utf-8');
-const lines = content.split('\n').filter(l => l.trim());
+const { headers, rows: csvRows } = readCSV(inputFile);
 
-if (lines.length < 2) {
+if (csvRows.length === 0) {
   console.error('Error: CSV file is empty or invalid');
   process.exit(1);
 }
 
-// Parse header
-const headers = parseCSVLine(lines[0]).map(h => h.trim());
-const amountIdx = headers.indexOf('amount');
+const amountIdx      = headers.indexOf('amount');
 const currencySymbolIdx = headers.indexOf('currency_symbol');
-const currencyCodeIdx = headers.indexOf('currency_code');
-const dateIdx = headers.indexOf('date');
+const currencyCodeIdx   = headers.indexOf('currency_code');
+const dateIdx        = headers.indexOf('date');
 const descriptionIdx = headers.indexOf('description');
-const categoryIdx = headers.indexOf('category');
+const categoryIdx    = headers.indexOf('category');
 
 if (amountIdx === -1 || currencySymbolIdx === -1 || currencyCodeIdx === -1 || dateIdx === -1) {
   console.error('Error: CSV header is missing required columns');
@@ -109,18 +106,15 @@ if (amountIdx === -1 || currencySymbolIdx === -1 || currencyCodeIdx === -1 || da
 
 // Parse data rows
 const expenses = [];
-for (let i = 1; i < lines.length; i++) {
-  const parts = parseCSVLine(lines[i]);
-  if (parts.length < headers.length) continue;
-
-  const description = descriptionIdx !== -1 ? parts[descriptionIdx].trim() : '';
-  const category = categoryIdx !== -1 ? parts[categoryIdx].trim() : null;
+for (const row of csvRows) {
+  const description = row['description'] || '';
+  const category    = categoryIdx !== -1 ? (row['category'] || null) : null;
 
   expenses.push({
-    amount: parseFloat(parts[amountIdx]),
-    currencySymbol: parts[currencySymbolIdx].trim(),
-    currencyCode: parts[currencyCodeIdx].trim(),
-    date: parts[dateIdx].trim(),
+    amount:         parseFloat(row['amount']),
+    currencySymbol: row['currency_symbol'],
+    currencyCode:   row['currency_code'],
+    date:           row['date'],
     description,
     category
   });

@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const { parseCSVLine } = require('../utils/csv');
 const { normalizeStr, countTokenMatches } = require('../utils/text');
 const { matchesFilter } = require('../utils/filtering');
+const { parseCSVLine } = require('../utils/csv');
+const { readCSVLines, writeCSVRaw, loadCategories, loadCategoryPatterns, fileExists } = require('../utils/data');
 
 const args = process.argv.slice(2);
 
@@ -101,10 +102,9 @@ if (!path.isAbsolute(categoryPatternsFile)) categoryPatternsFile = path.join(pro
 
 // Load category patterns
 let categoryPatterns = [];
-if (categoryPatternsFile && fs.existsSync(categoryPatternsFile)) {
+if (categoryPatternsFile && fileExists(categoryPatternsFile)) {
   try {
-    const parsed = JSON.parse(fs.readFileSync(categoryPatternsFile, 'utf-8').replace(/^\uFEFF/, ''));
-    categoryPatterns = parsed.forced || [];
+    categoryPatterns = loadCategoryPatterns(categoryPatternsFile);
   } catch (e) {
     console.warn('Warning: Could not read/parse category-patterns-file:', e.message);
   }
@@ -115,8 +115,7 @@ let categoryDefs = [];
 if (categoriesFile) {
   const fPath = path.isAbsolute(categoriesFile) ? categoriesFile : path.join(process.cwd(), categoriesFile);
   try {
-    const parsed = JSON.parse(fs.readFileSync(fPath, 'utf-8').replace(/^\uFEFF/, ''));
-    categoryDefs = parsed.categories || [];
+    categoryDefs = loadCategories(fPath);
   } catch (e) {
     console.error('Error: Could not read/parse --categories-file:', e.message);
     process.exit(1);
@@ -252,17 +251,12 @@ function assignCategory(row, columnMap, categories, parentPath) {
 
 // Read and process CSV
 try {
-  const content = fs.readFileSync(inputFile, 'utf-8');
-  const lines = content.split('\n').filter(l => l.trim());
+  const { headers, lines, columnMap } = readCSVLines(inputFile);
 
   if (lines.length < 1) {
     console.error('Error: CSV file is empty');
     process.exit(1);
   }
-
-  const headers = parseCSVLine(lines[0]).map(h => h.trim());
-  const columnMap = {};
-  headers.forEach((h, i) => { columnMap[h] = i; });
 
   // Build output with added category column
   const outputLines = [lines[0] + ',' + categoryColName];
@@ -277,7 +271,7 @@ try {
     outputLines.push(lines[i] + ',' + label);
   }
 
-  fs.writeFileSync(outputFile, outputLines.join('\n') + '\n', 'utf-8');
+  writeCSVRaw(outputFile, outputLines.join('\n') + '\n');
 
   const totalRows = lines.length - 1;
   console.log(`✓ Labeled CSV created: ${outputFile}`);

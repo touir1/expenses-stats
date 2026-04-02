@@ -1,22 +1,15 @@
-const fs = require('fs');
-const { parseCSVLine } = require('../utils/csv');
+const { readCSV } = require('../utils/data');
 
 // Read CSV
-const csv = fs.readFileSync('data/processed/depenses-labeled.csv', 'utf-8');
-const lines = csv.split('\n').slice(1);
+const { rows: csvRows, columnMap } = readCSV('data/processed/depenses-labeled.csv');
 
-const others = [];
-
-lines.forEach(line => {
-  if (!line.trim()) return;
-  const parts = parseCSVLine(line);
-  if (parts.length >= 6 && parts[parts.length - 1].trim() === 'other') {
-    const amount = parts[0].trim();
-    const currency = parts[1].trim();
-    const desc = parts[4].trim();
-    others.push({ desc, amount, currency });
-  }
-});
+const others = csvRows
+  .filter(row => (row['category'] || '').trim() === 'other')
+  .map(row => ({
+    desc:     (row['description'] || '').trim(),
+    amount:   (row['amount'] || '').trim(),
+    currency: (row['currency_symbol'] || '').trim()
+  }));
 
 // Sort by description
 others.sort((a, b) => a.desc.localeCompare(b.desc));

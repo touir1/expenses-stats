@@ -3,6 +3,7 @@ const path = require('path');
 const { parseCSVLine } = require('../utils/csv');
 const { normalizeStr, countTokenMatches } = require('../utils/text');
 const { matchesFilter, dateToComparable } = require('../utils/filtering');
+const { readCSVLines, writeCSVRaw, readJSON, fileExists } = require('../utils/data');
 
 // Parse command-line arguments
 const args = process.argv.slice(2);
@@ -99,7 +100,7 @@ let filtersDef = {};
 if (filtersFile) {
   const fPath = path.isAbsolute(filtersFile) ? filtersFile : path.join(process.cwd(), filtersFile);
   try {
-    filtersDef = JSON.parse(fs.readFileSync(fPath, 'utf-8'));
+    filtersDef = readJSON(fPath);
   } catch (e) {
     console.error('Error: Could not read/parse --filters-file:', e.message);
     process.exit(1);
@@ -117,7 +118,7 @@ if (filtersFile) {
 function collectCategoryTokens(categoryName, categoriesPath) {
   try {
     const cPath = path.isAbsolute(categoriesPath) ? categoriesPath : path.join(process.cwd(), categoriesPath);
-    const categoriesData = JSON.parse(fs.readFileSync(cPath, 'utf-8').replace(/^\uFEFF/, ''));
+    const categoriesData = readJSON(cPath);
     
     const category = categoriesData.categories.find(c => c.name === categoryName);
     if (!category) {
@@ -187,20 +188,12 @@ function matchesAllFilters(row, columnMap) {
 
 // Read the CSV file
 try {
-  const content = fs.readFileSync(inputFile, 'utf-8');
-  const lines = content.split('\n').filter(l => l.trim());
+  const { headers, lines, columnMap } = readCSVLines(inputFile);
 
   if (lines.length < 1) {
     console.error('Error: CSV file is empty');
     process.exit(1);
   }
-
-  // Parse header
-  const headers = parseCSVLine(lines[0]).map(h => h.trim());
-  const columnMap = {};
-  headers.forEach((header, idx) => {
-    columnMap[header] = idx;
-  });
 
   // Parse and filter data rows
   const filteredRows = [];
@@ -223,7 +216,7 @@ try {
   }
 
   // Write the output file
-  fs.writeFileSync(outputFile, csv, 'utf-8');
+  writeCSVRaw(outputFile, csv);
 
   console.log(`✓ Filtered CSV created: ${outputFile}`);
   console.log(`✓ Total rows: ${totalRows}`);

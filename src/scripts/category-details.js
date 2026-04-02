@@ -4,7 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const { parseCSVLine } = require('../utils/csv');
 const { normalizeStr } = require('../utils/text');
-const { loadConversionRates, getRateForDate, convertToEUR } = require('../utils/conversion-rates');
+const { loadConversionRates, convertToEUR } = require('../utils/conversion-rates');
+const { readCSVLines, fileExists } = require('../utils/data');
 
 async function main() {
   const args = process.argv.slice(2);
@@ -64,25 +65,17 @@ Output:
 
   try {
     // Read CSV
-    if (!fs.existsSync(inputFile)) {
+    if (!fileExists(inputFile)) {
       console.error(`Error: File not found: ${inputFile}`);
       process.exit(1);
     }
 
-    const content = fs.readFileSync(inputFile, 'utf-8');
-    const lines = content.split('\n').filter(l => l.trim());
-    
+    const { headers: header, lines, columnMap } = readCSVLines(inputFile);
+
     if (lines.length < 2) {
       console.error('Error: CSV file is empty or has no data rows');
       process.exit(1);
     }
-
-    // Parse header
-    const header = parseCSVLine(lines[0]);
-    const columnMap = {};
-    header.forEach((col, idx) => {
-      columnMap[col] = idx;
-    });
 
     // Get conversion rates
     const rates = loadConversionRates(conversionFile);
