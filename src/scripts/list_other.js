@@ -1,7 +1,29 @@
 const { readCSV } = require('../utils/data');
+const { parseArgs } = require('../utils/cli-args');
+const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
+
+const optionDefs = [
+  { flag: '--input-file', param: true, default: null }
+];
+
+const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
+
+if (showHelp) {
+  console.log(`
+Usage: node list_other.js [options]
+
+Options:
+  --input-file <path>  Input labeled CSV file (default: data/processed/depenses-labeled.csv)
+  -h, --help          Show this help message
+`);
+  process.exit(0);
+}
+
+const defaults = getDefaultPaths();
+const inputFile = resolvePath(parsedArgs['input-file'], defaults.inputFile);
 
 // Read CSV
-const { rows: csvRows, columnMap } = readCSV('data/processed/depenses-labeled.csv');
+const { rows: csvRows } = readCSV(inputFile);
 
 const others = csvRows
   .filter(row => (row['category'] || '').trim() === 'other')

@@ -1,5 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
 const { hashExpense } = require('./hash');
+const { DEFAULT_RATE } = require('./conversion-rates');
 
 // Open a SQLite database connection
 function openDatabase(databaseFile) {
@@ -169,33 +170,33 @@ function loadCategoriesIntoDb(db, categories) {
     db.serialize(() => {
       db.run('BEGIN TRANSACTION');
 
-      const catStmt = db.prepare(
-        'INSERT OR REPLACE INTO categories (name, parent_id, label) VALUES (?, ?, ?)'
-      );
-
+      // flattenCategories returns parents before children. Within serialize(),
+      // each db.run() executes sequentially, so each parent row exists in the DB
+      // before its child's INSERT runs. The subquery resolves parent_id at insert time.
       const labelToId = {};
-      let insertedCount = 0;
+      let catError = null;
 
       for (const cat of flatCategories) {
-        // Find parent ID from previously inserted categories
-        const parentId = cat.parentLabel ? labelToId[cat.parentLabel] : null;
-
-        catStmt.run([cat.name, parentId, cat.label], function(err) {
-          if (err) {
-            console.error(`Error inserting category ${cat.label}:`, err.message);
-            return;
+        db.run(
+          'INSERT OR REPLACE INTO categories (name, parent_id, label) VALUES (?, (SELECT id FROM categories WHERE label = ?), ?)',
+          [cat.name, cat.parentLabel || null, cat.label],
+          function(err) {
+            if (err) {
+              console.error(`Error inserting category ${cat.label}:`, err.message);
+              catError = err;
+            }
           }
-          labelToId[cat.label] = this.lastID;
-          insertedCount++;
-        });
+        );
       }
 
-      catStmt.finalize((err) => {
-        if (err) {
+      // After all inserts, fetch the id map in one query
+      db.all('SELECT id, label FROM categories', (err, rows) => {
+        if (err || catError) {
           db.run('ROLLBACK');
-          reject(err);
+          reject(err || catError);
           return;
         }
+        (rows || []).forEach(r => { labelToId[r.label] = r.id; });
 
         // Phase 2: Insert all filters and tokens in a single transaction
         const filterStmt = db.prepare(
@@ -469,7 +470,6 @@ function getAllForcedCategorizationsFromDb(db) {
   });
 }
 
-const DEFAULT_RATE = 3.5;
 
 // Bulk-load conversion rates into DB using a transaction.
 // rows: array of { date (YYYY-MM-DD), base, quote, rate }

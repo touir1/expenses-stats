@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { loadConversionRates, getRateForDate } = require('../utils/conversion-rates');
+const { DEFAULT_RATE, loadConversionRates, getRateForDate } = require('../utils/conversion-rates');
 const { readCSV, fileExists } = require('../utils/data');
 const { parseArgs } = require('../utils/cli-args');
 const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
@@ -40,7 +40,7 @@ Example:
 // Resolve paths using defaults
 const defaults = getDefaultPaths();
 const inputFile = resolvePath(parsedArgs['input-file'], defaults.inputFile);
-const outputFile = resolvePath(parsedArgs['output-file'], defaults.outputDir + '/depenses-stats.json');
+const outputFile = resolvePath(parsedArgs['output-file'], path.join(defaults.outputDir, 'depenses-stats.json'));
 const conversionRatesFile = resolvePath(parsedArgs['conversion-rates'], defaults.conversionRatesFile);
 const outputMode = parsedArgs['output'] || 'console';
 const convertCurrency = parsedArgs['convert-to'] ? parsedArgs['convert-to'].toUpperCase() : null;
@@ -249,7 +249,7 @@ if (hasCategories) {
     const c = stats.byCategory[mainCat];
     // Use overall average rate for category totals (no date context per category)
     const rates = Object.values(conversionRates);
-    const avgRate = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : 3.5;
+    const avgRate = rates.length > 0 ? rates.reduce((a, b) => a + b, 0) / rates.length : DEFAULT_RATE;
     c.total = {
       EUR: c.EUR + (c.TND / avgRate),
       TND: c.TND + (c.EUR * avgRate)

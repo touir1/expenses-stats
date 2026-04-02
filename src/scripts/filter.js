@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { parseCSVLine } = require('../utils/csv');
 const { normalizeStr, countTokenMatches } = require('../utils/text');
-const { matchesFilter, dateToComparable } = require('../utils/filtering');
+const { matchesFilter } = require('../utils/filtering');
 const { readCSVLines, writeCSVRaw, readJSON, fileExists } = require('../utils/data');
 const { parseArgs } = require('../utils/cli-args');
 const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
@@ -56,8 +56,8 @@ Example:
 
 // Use defaults from path resolver
 const defaults = getDefaultPaths();
-let inputFile = resolvePath(parsedArgs['input-file'], defaults.labeledFile);
-let outputFile = resolvePath(parsedArgs['output-file'], defaults.outputPath + '/depenses-filtered.csv');
+let inputFile = resolvePath(parsedArgs['input-file'], defaults.inputFile);
+let outputFile = resolvePath(parsedArgs['output-file'], path.join(defaults.outputDir, 'depenses-filtered.csv'));
 const filterJson = parsedArgs['filters'];
 const filtersFile = parsedArgs['filters-file'];
 const beginDate = parsedArgs['begin-date'];

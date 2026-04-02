@@ -15,7 +15,7 @@ function resolvePath(inputPath, defaultPath = null, baseDir = null) {
   if (path.isAbsolute(target)) {
     return target;
   }
-  return path.isAbsolute(target) ? target : path.join(process.cwd(), target);
+  return path.join(baseDir, target);
 }
 
 // Build a path within the project structure
@@ -34,6 +34,7 @@ function resolveDataPath(relativePath, defaultSegments = []) {
 function getDefaultPaths() {
   const root = getProjectRoot();
   return {
+    parsedFile: path.join(root, 'data', 'processed', 'depenses.csv'),
     inputFile: path.join(root, 'data', 'processed', 'depenses-labeled.csv'),
     rawFile: path.join(root, 'data', 'raw', 'depenses.txt'),
     categoriesFile: path.join(root, 'config', 'categories.json'),

@@ -1,17 +1,5 @@
 const { normalizeStr, countTokenMatches } = require('./text');
-
-/**
- * Convert DD/MM/YYYY date string to comparable YYYYMMDD string.
- * @param {string} dateStr
- * @returns {string}
- */
-function dateToComparable(dateStr) {
-  const parts = dateStr.split('/');
-  if (parts.length === 3) {
-    return parts[2] + parts[1] + parts[0];
-  }
-  return dateStr;
-}
+const { toComparableString } = require('./date-utils');
 
 /**
  * Match a single value against a filter condition.
@@ -38,14 +26,14 @@ function matchesFilter(value, condition, columnName) {
       case 'lt':  if (isNaN(numVal) || isNaN(numOp) || numVal >= numOp) return false; break;
       case 'gte':
         if (columnName === 'date' && value.includes('/') && operand.includes('/')) {
-          if (dateToComparable(value) < dateToComparable(operand)) return false;
+          if (toComparableString(value) < toComparableString(operand)) return false;
         } else {
           if (isNaN(numVal) || isNaN(numOp) || numVal < numOp) return false;
         }
         break;
       case 'lte':
         if (columnName === 'date' && value.includes('/') && operand.includes('/')) {
-          if (dateToComparable(value) > dateToComparable(operand)) return false;
+          if (toComparableString(value) > toComparableString(operand)) return false;
         } else {
           if (isNaN(numVal) || isNaN(numOp) || numVal > numOp) return false;
         }
@@ -58,8 +46,7 @@ function matchesFilter(value, condition, columnName) {
           const rx = new RegExp(operand, 'i');
           if (!rx.test(String(value)) && !rx.test(normalizeStr(String(value)))) return false;
         } catch (e) {
-          console.error(`Invalid regex "${operand}": ${e.message}`);
-          process.exit(1);
+          throw new Error(`Invalid regex "${operand}": ${e.message}`);
         }
         break;
       case 'tokens':
@@ -72,11 +59,10 @@ function matchesFilter(value, condition, columnName) {
         if (!Array.isArray(operand) || operand.map(String).includes(String(value))) return false;
         break;
       default:
-        console.error(`Unknown operator "${op}"`);
-        process.exit(1);
+        throw new Error(`Unknown filter operator "${op}"`);
     }
   }
   return true;
 }
 
-module.exports = { matchesFilter, dateToComparable };
+module.exports = { matchesFilter };

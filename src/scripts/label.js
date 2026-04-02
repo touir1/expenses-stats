@@ -45,8 +45,8 @@ Examples:
 
 // Resolve paths
 const defaults = getDefaultPaths();
-const inputFile = resolvePath(parsedArgs['input-file'], defaults.inputFile);
-const outputFile = resolvePath(parsedArgs['output-file'], defaults.inputFile.replace('.csv', '-labeled.csv'));
+const inputFile = resolvePath(parsedArgs['input-file'], defaults.parsedFile);
+const outputFile = resolvePath(parsedArgs['output-file'], defaults.inputFile);
 const categoriesFile = parsedArgs['categories-file'] ? resolvePath(parsedArgs['categories-file']) : defaults.categoriesFile;
 const categoryPatternsFile = resolvePath(parsedArgs['category-patterns-file'], defaults.categoryPatternsFile);
 const categoryColName = parsedArgs['category-col'] || 'category';
@@ -84,7 +84,7 @@ if (categoriesFile) {
   }
 } else {
   console.error('Error: --categories or --categories-file is required');
-  showHelp();
+  process.exit(1);
 }
 
 if (categoryDefs.length === 0) {

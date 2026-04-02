@@ -77,4 +77,4 @@ function convertToEUR(amount, currency, dateStr, rates) {
   return amount / rate;
 }
 
-module.exports = { loadConversionRates, getRateForDate, convertToEUR };
+module.exports = { DEFAULT_RATE, loadConversionRates, getRateForDate, convertToEUR };
