@@ -16,6 +16,7 @@ function initializeDatabase(db, { dropAll = false } = {}) {
     db.serialize(() => {
       if (dropAll) {
         db.run('DROP TABLE IF EXISTS expenses', () => {});
+        db.run('DROP TABLE IF EXISTS filter_tokens', () => {});
         db.run('DROP TABLE IF EXISTS filters', () => {});
         db.run('DROP TABLE IF EXISTS categories', () => {});
       }
@@ -37,11 +38,25 @@ function initializeDatabase(db, { dropAll = false } = {}) {
           category_id INTEGER NOT NULL,
           column_name TEXT NOT NULL,
           operator TEXT NOT NULL,
-          filter_value TEXT NOT NULL,
+          filter_value TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
         )
       `, (err) => { if (err) reject(err); });
+
+      db.run(`
+        CREATE TABLE IF NOT EXISTS filter_tokens (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          filter_id INTEGER NOT NULL,
+          token TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (filter_id) REFERENCES filters(id) ON DELETE CASCADE,
+          UNIQUE(filter_id, token)
+        )
+      `, (err) => { if (err) reject(err); });
+
+      db.run(`CREATE INDEX IF NOT EXISTS idx_filter_tokens_filter ON filter_tokens (filter_id)`
+        , (err) => { if (err) reject(err); });
 
       db.run(`
         CREATE TABLE IF NOT EXISTS expenses (
@@ -108,13 +123,36 @@ function _processCategory(db, catDef, parentId, parentLabel, callback) {
 
       filterEntries.forEach(([colName, condition]) => {
         Object.entries(condition).forEach(([operator, value]) => {
-          const filterValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
+          const isTokens = operator === 'tokens' && Array.isArray(value);
+          const filterValue = isTokens ? null : (typeof value === 'object' ? JSON.stringify(value) : String(value));
           db.run(
             'INSERT INTO filters (category_id, column_name, operator, filter_value) VALUES (?, ?, ?, ?)',
             [categoryId, colName, operator, filterValue],
-            (err) => {
-              if (err) console.error(`Error inserting filter for ${catDef.name}:`, err.message);
-              if (++filtersProcessed === totalFilterOps) processSubcategories();
+            function(err) {
+              if (err) {
+                console.error(`Error inserting filter for ${catDef.name}:`, err.message);
+                if (++filtersProcessed === totalFilterOps) processSubcategories();
+                return;
+              }
+              if (!isTokens || value.length === 0) {
+                if (++filtersProcessed === totalFilterOps) processSubcategories();
+                return;
+              }
+              // Insert each token into filter_tokens
+              const filterId = this.lastID;
+              let tokensDone = 0;
+              value.forEach((token) => {
+                db.run(
+                  'INSERT INTO filter_tokens (filter_id, token) VALUES (?, ?)',
+                  [filterId, String(token)],
+                  (tokenErr) => {
+                    if (tokenErr) console.error(`Error inserting token "${token}" for ${catDef.name}:`, tokenErr.message);
+                    if (++tokensDone === value.length) {
+                      if (++filtersProcessed === totalFilterOps) processSubcategories();
+                    }
+                  }
+                );
+              });
             }
           );
         });
@@ -185,6 +223,62 @@ function getRowCount(db, table) {
   });
 }
 
+// Get all tokens for a filter row
+function getFilterTokens(db, filterId) {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT id, token FROM filter_tokens WHERE filter_id = ? ORDER BY token', [filterId], (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows || []);
+    });
+  });
+}
+
+// Add a token to an existing filter
+function addFilterToken(db, filterId, token) {
+  return new Promise((resolve, reject) => {
+    db.run('INSERT OR IGNORE INTO filter_tokens (filter_id, token) VALUES (?, ?)', [filterId, token], function(err) {
+      if (err) reject(err);
+      else resolve(this.lastID);
+    });
+  });
+}
+
+// Remove a token from a filter by token text
+function removeFilterToken(db, filterId, token) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM filter_tokens WHERE filter_id = ? AND token = ?', [filterId, token], function(err) {
+      if (err) reject(err);
+      else resolve(this.changes);
+    });
+  });
+}
+
+// Get all filters (with their tokens) for a category
+function getFiltersForCategory(db, categoryId) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT f.id, f.column_name, f.operator, f.filter_value,
+              group_concat(ft.token, '|') AS tokens
+       FROM filters f
+       LEFT JOIN filter_tokens ft ON ft.filter_id = f.id
+       WHERE f.category_id = ?
+       GROUP BY f.id
+       ORDER BY f.column_name, f.operator`,
+      [categoryId],
+      (err, rows) => {
+        if (err) { reject(err); return; }
+        resolve((rows || []).map(r => ({
+          id: r.id,
+          column_name: r.column_name,
+          operator: r.operator,
+          filter_value: r.filter_value,
+          tokens: r.tokens ? r.tokens.split('|') : [],
+        })));
+      }
+    );
+  });
+}
+
 module.exports = {
   openDatabase,
   initializeDatabase,
@@ -193,4 +287,8 @@ module.exports = {
   getExpenseCount,
   insertExpense,
   getRowCount,
+  getFilterTokens,
+  addFilterToken,
+  removeFilterToken,
+  getFiltersForCategory,
 };
