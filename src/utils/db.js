@@ -18,7 +18,9 @@ function initializeDatabase(db, { dropAll = false } = {}) {
         db.run('DROP TABLE IF EXISTS expenses', () => {});
         db.run('DROP TABLE IF EXISTS filter_tokens', () => {});
         db.run('DROP TABLE IF EXISTS filters', () => {});
+        db.run('DROP TABLE IF EXISTS category_patterns', () => {});
         db.run('DROP TABLE IF EXISTS categories', () => {});
+        db.run('DROP TABLE IF EXISTS conversion_rates', () => {});
       }
 
       db.run(`
@@ -82,6 +84,36 @@ function initializeDatabase(db, { dropAll = false } = {}) {
 
       // Index for FK lookups: filters by category (SQLite does not auto-index FK columns)
       db.run(`CREATE INDEX IF NOT EXISTS idx_filters_category ON filters (category_id)`
+        , (err) => { if (err) reject(err); });
+
+      db.run(`
+        CREATE TABLE IF NOT EXISTS conversion_rates (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date TEXT NOT NULL,
+          base TEXT NOT NULL,
+          quote TEXT NOT NULL,
+          rate REAL NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(date, base, quote)
+        )
+      `, (err) => { if (err) reject(err); });
+
+      db.run(`
+        CREATE TABLE IF NOT EXISTS category_patterns (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          description_pattern TEXT NOT NULL UNIQUE,
+          category_id INTEGER NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
+        )
+      `, (err) => { if (err) reject(err); });
+
+      // Index for nearest-prior-date lookup on conversion_rates
+      db.run(`CREATE INDEX IF NOT EXISTS idx_conversion_rates_lookup ON conversion_rates (base, quote, date)`
+        , (err) => { if (err) reject(err); });
+
+      // Index for FK lookups: category_patterns by category
+      db.run(`CREATE INDEX IF NOT EXISTS idx_category_patterns_category ON category_patterns (category_id)`
         , (err) => { if (err) reject(err); else resolve(); });
     });
   });
@@ -253,6 +285,93 @@ function removeFilterToken(db, filterId, token) {
   });
 }
 
+const DEFAULT_RATE = 3.5;
+
+// Bulk-load conversion rates into DB using a transaction.
+// rows: array of { date (YYYY-MM-DD), base, quote, rate }
+function loadConversionRatesIntoDb(db, rows) {
+  return new Promise((resolve, reject) => {
+    if (rows.length === 0) { resolve(); return; }
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      const stmt = db.prepare(
+        'INSERT OR REPLACE INTO conversion_rates (date, base, quote, rate) VALUES (?, ?, ?, ?)'
+      );
+      for (const r of rows) {
+        stmt.run([r.date, String(r.base).toUpperCase(), String(r.quote).toUpperCase(), parseFloat(r.rate)]);
+      }
+      stmt.finalize();
+      db.run('COMMIT', (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  });
+}
+
+// Get conversion rate for a DD/MM/YYYY date using nearest-prior-date logic.
+// Falls back to DEFAULT_RATE if no rate is found.
+function getConversionRateFromDb(db, dateStr, base = 'EUR', quote = 'TND') {
+  return new Promise((resolve, reject) => {
+    const parts = dateStr.split('/');
+    if (parts.length !== 3) { resolve(DEFAULT_RATE); return; }
+    const isoDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    db.get(
+      'SELECT rate FROM conversion_rates WHERE base = ? AND quote = ? AND date <= ? ORDER BY date DESC LIMIT 1',
+      [base.toUpperCase(), quote.toUpperCase(), isoDate],
+      (err, row) => {
+        if (err) reject(err);
+        else resolve(row ? row.rate : DEFAULT_RATE);
+      }
+    );
+  });
+}
+
+// Load category patterns into DB.
+// patterns: array of { description, category } where category is a label like "food/cafe".
+// Categories must already be loaded before calling this.
+function loadCategoryPatternsIntoDb(db, patterns) {
+  return new Promise((resolve, reject) => {
+    if (patterns.length === 0) { resolve(); return; }
+    let processed = 0;
+    patterns.forEach((p) => {
+      db.get('SELECT id FROM categories WHERE label = ?', [p.category], (err, row) => {
+        if (err) { reject(err); return; }
+        if (!row) {
+          console.warn(`  ⚠ Category not found for pattern "${p.description}": ${p.category}`);
+          if (++processed === patterns.length) resolve();
+          return;
+        }
+        db.run(
+          'INSERT OR REPLACE INTO category_patterns (description_pattern, category_id) VALUES (?, ?)',
+          [p.description, row.id],
+          (err2) => {
+            if (err2) console.error(`Error inserting pattern "${p.description}":`, err2.message);
+            if (++processed === patterns.length) resolve();
+          }
+        );
+      });
+    });
+  });
+}
+
+// Get all category patterns, joined with their category label.
+// Ordered longest-pattern-first (same priority as label.js matching logic).
+function getCategoryPatternsFromDb(db) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT cp.id, cp.description_pattern, c.label AS category_label
+       FROM category_patterns cp
+       JOIN categories c ON c.id = cp.category_id
+       ORDER BY length(cp.description_pattern) DESC`,
+      (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows || []);
+      }
+    );
+  });
+}
+
 // Get all filters (with their tokens) for a category
 function getFiltersForCategory(db, categoryId) {
   return new Promise((resolve, reject) => {
@@ -291,4 +410,8 @@ module.exports = {
   addFilterToken,
   removeFilterToken,
   getFiltersForCategory,
+  loadConversionRatesIntoDb,
+  getConversionRateFromDb,
+  loadCategoryPatternsIntoDb,
+  getCategoryPatternsFromDb,
 };

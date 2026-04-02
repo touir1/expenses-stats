@@ -1,6 +1,7 @@
 const path = require('path');
-const { readCSV, loadCategories, fileExists, ensureDir } = require('../utils/data');
-const { openDatabase, initializeDatabase, loadCategoriesIntoDb, getCategoryIdByLabel, getExpenseCount, insertExpense, getRowCount } = require('../utils/db');
+const { readCSV, loadCategories, loadCategoryPatterns, fileExists, ensureDir } = require('../utils/data');
+const { openDatabase, initializeDatabase, loadCategoriesIntoDb, loadCategoryPatternsIntoDb,
+        loadConversionRatesIntoDb, getCategoryIdByLabel, getExpenseCount, insertExpense, getRowCount } = require('../utils/db');
 
 const args = process.argv.slice(2);
 
@@ -9,11 +10,13 @@ function showHelp() {
 Usage: node db-insert.js [options]
 
 Options:
-  --input-file <path>      Input labeled CSV file (default: ../../data/processed/depenses-labeled.csv)
-  --categories-file <path> Categories definition file (default: ../../config/categories.json)
-  --database <path>        SQLite database file (default: ../../data/database/depenses.db)
-  --delete-all             Delete all data and recreate the tables
-  -h, --help              Show this help message
+  --input-file <path>            Input labeled CSV file (default: ../../data/processed/depenses-labeled.csv)
+  --categories-file <path>       Categories definition file (default: ../../config/categories.json)
+  --category-patterns-file <path> Category patterns file (default: ../../config/category-patterns.json)
+  --conversion-rates-file <path> Conversion rates CSV file (default: ../../config/conversion_rates.csv)
+  --database <path>              SQLite database file (default: ../../data/database/depenses.db)
+  --delete-all                   Delete all data and recreate the tables
+  -h, --help                    Show this help message
 
 Examples:
   node db-insert.js --input-file data/processed/depenses-labeled.csv --database data/depenses.db
@@ -28,6 +31,8 @@ if (args.includes('-h') || args.includes('--help')) {
 
 let inputFile = null;
 let categoriesFile = null;
+let categoryPatternsFile = null;
+let conversionRatesFile = null;
 let databaseFile = null;
 let deleteAll = false;
 
@@ -36,6 +41,10 @@ for (let i = 0; i < args.length; i++) {
     inputFile = args[i + 1]; i++;
   } else if (args[i] === '--categories-file' && args[i + 1]) {
     categoriesFile = args[i + 1]; i++;
+  } else if (args[i] === '--category-patterns-file' && args[i + 1]) {
+    categoryPatternsFile = args[i + 1]; i++;
+  } else if (args[i] === '--conversion-rates-file' && args[i + 1]) {
+    conversionRatesFile = args[i + 1]; i++;
   } else if (args[i] === '--database' && args[i + 1]) {
     databaseFile = args[i + 1]; i++;
   } else if (args[i] === '--delete-all') {
@@ -46,10 +55,14 @@ for (let i = 0; i < args.length; i++) {
 const baseDir = path.join(__dirname, '..', '..');
 if (!inputFile) inputFile = path.join(baseDir, 'data', 'processed', 'depenses-labeled.csv');
 if (!categoriesFile) categoriesFile = path.join(baseDir, 'config', 'categories.json');
+if (!categoryPatternsFile) categoryPatternsFile = path.join(baseDir, 'config', 'category-patterns.json');
+if (!conversionRatesFile) conversionRatesFile = path.join(baseDir, 'config', 'conversion_rates.csv');
 if (!databaseFile) databaseFile = path.join(baseDir, 'data', 'database', 'depenses.db');
 
 if (!path.isAbsolute(inputFile)) inputFile = path.join(process.cwd(), inputFile);
 if (!path.isAbsolute(categoriesFile)) categoriesFile = path.join(process.cwd(), categoriesFile);
+if (!path.isAbsolute(categoryPatternsFile)) categoryPatternsFile = path.join(process.cwd(), categoryPatternsFile);
+if (!path.isAbsolute(conversionRatesFile)) conversionRatesFile = path.join(process.cwd(), conversionRatesFile);
 if (!path.isAbsolute(databaseFile)) databaseFile = path.join(process.cwd(), databaseFile);
 
 // Ensure database directory exists
@@ -77,6 +90,34 @@ async function main() {
       console.log('✓ Categories and filters loaded');
     } else {
       console.log(`✓ Categories already loaded (${catCount} entries), skipping`);
+    }
+
+    // Load category patterns — only if table is empty or --delete-all
+    const patternCount = await getRowCount(db, 'category_patterns');
+    if (deleteAll || patternCount === 0) {
+      if (fileExists(categoryPatternsFile)) {
+        const patterns = loadCategoryPatterns(categoryPatternsFile);
+        await loadCategoryPatternsIntoDb(db, patterns);
+        console.log(`✓ Category patterns loaded (${patterns.length} entries)`);
+      } else {
+        console.log('  ⚠ Category patterns file not found, skipping');
+      }
+    } else {
+      console.log(`✓ Category patterns already loaded (${patternCount} entries), skipping`);
+    }
+
+    // Load conversion rates — only if table is empty or --delete-all
+    const rateCount = await getRowCount(db, 'conversion_rates');
+    if (deleteAll || rateCount === 0) {
+      if (fileExists(conversionRatesFile)) {
+        const { rows: rateRows } = readCSV(conversionRatesFile);
+        await loadConversionRatesIntoDb(db, rateRows);
+        console.log(`✓ Conversion rates loaded (${rateRows.length} entries)`);
+      } else {
+        console.log('  ⚠ Conversion rates file not found, skipping');
+      }
+    } else {
+      console.log(`✓ Conversion rates already loaded (${rateCount} entries), skipping`);
     }
 
     if (deleteAll && !inputFile) {
