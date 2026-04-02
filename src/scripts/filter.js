@@ -4,18 +4,29 @@ const { parseCSVLine } = require('../utils/csv');
 const { normalizeStr, countTokenMatches } = require('../utils/text');
 const { matchesFilter, dateToComparable } = require('../utils/filtering');
 const { readCSVLines, writeCSVRaw, readJSON, fileExists } = require('../utils/data');
+const { parseArgs } = require('../utils/cli-args');
+const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
+const { logError } = require('../utils/console-output');
 
 // Parse command-line arguments
-const args = process.argv.slice(2);
+const optionDefs = [
+  { flag: '--input-file', param: true, default: null },
+  { flag: '--output-file', param: true, default: null },
+  { flag: '--filters', param: true, default: null },
+  { flag: '--filters-file', param: true, default: null },
+  { flag: '--begin-date', param: true, default: null },
+  { flag: '--end-date', param: true, default: null }
+];
 
-// Help function
-function showHelp() {
+const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
+
+if (showHelp) {
   console.log(`
 Usage: node filter.js [options]
 
 Options:
-  --input-file <path>    Input CSV file (default: ../../data/processed/depenses-labeled.csv)
-  --output-file <path>   Output CSV file (default: ../../output/depenses-filtered.csv)
+  --input-file <path>    Input CSV file (default: data/processed/depenses-labeled.csv)
+  --output-file <path>   Output CSV file (default: output/depenses-filtered.csv)
   --filters <json>       Filters in JSON format (GraphQL-like style)
   --filters-file <path>  Path to a JSON file containing filters
   --begin-date <date>    Filter expenses from this date (DD/MM/YYYY format)
@@ -43,57 +54,14 @@ Example:
   process.exit(0);
 }
 
-// Check for help flag
-if (args.includes('-h') || args.includes('--help')) {
-  showHelp();
-}
-
-let inputFile = null;
-let outputFile = null;
-let filterJson = null;
-let filtersFile = null;
-let beginDate = null;
-let endDate = null;
-
-// Parse arguments
-for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--input-file' && args[i + 1]) {
-    inputFile = args[i + 1];
-    i++;
-  } else if (args[i] === '--output-file' && args[i + 1]) {
-    outputFile = args[i + 1];
-    i++;
-  } else if (args[i] === '--filters-file' && args[i + 1]) {
-    filtersFile = args[i + 1];
-    i++;
-  } else if (args[i] === '--filters' && args[i + 1]) {
-    filterJson = args[i + 1];
-    i++;
-  } else if (args[i] === '--begin-date' && args[i + 1]) {
-    beginDate = args[i + 1];
-    i++;
-  } else if (args[i] === '--end-date' && args[i + 1]) {
-    endDate = args[i + 1];
-    i++;
-  }
-}
-
-// Use defaults if not provided
-const baseDir = path.join(__dirname, '..', '..');
-if (!inputFile) {
-  inputFile = path.join(baseDir, 'data', 'processed', 'depenses-labeled.csv');
-}
-if (!outputFile) {
-  outputFile = path.join(baseDir, 'output', 'depenses-filtered.csv');
-}
-
-// Make paths absolute if relative
-if (!path.isAbsolute(inputFile)) {
-  inputFile = path.join(process.cwd(), inputFile);
-}
-if (!path.isAbsolute(outputFile)) {
-  outputFile = path.join(process.cwd(), outputFile);
-}
+// Use defaults from path resolver
+const defaults = getDefaultPaths();
+let inputFile = resolvePath(parsedArgs['input-file'], defaults.labeledFile);
+let outputFile = resolvePath(parsedArgs['output-file'], defaults.outputPath + '/depenses-filtered.csv');
+const filterJson = parsedArgs['filters'];
+const filtersFile = parsedArgs['filters-file'];
+const beginDate = parsedArgs['begin-date'];
+const endDate = parsedArgs['end-date'];
 
 // Parse filters
 let filtersDef = {};
@@ -102,14 +70,14 @@ if (filtersFile) {
   try {
     filtersDef = readJSON(fPath);
   } catch (e) {
-    console.error('Error: Could not read/parse --filters-file:', e.message);
+    logError('Could not read/parse --filters-file', e.message);
     process.exit(1);
   }
 } else if (filterJson) {
   try {
     filtersDef = JSON.parse(filterJson);
   } catch (e) {
-    console.error('Error: Invalid JSON in --filters parameter:', e.message);
+    logError('Invalid JSON in --filters parameter', e.message);
     process.exit(1);
   }
 }
@@ -122,7 +90,7 @@ function collectCategoryTokens(categoryName, categoriesPath) {
     
     const category = categoriesData.categories.find(c => c.name === categoryName);
     if (!category) {
-      console.error(`Error: Category "${categoryName}" not found in categories.json`);
+      logError(`Category "${categoryName}" not found in categories.json`);
       process.exit(1);
     }
     
@@ -138,7 +106,7 @@ function collectCategoryTokens(categoryName, categoriesPath) {
     }
     return Array.from(allTokens);
   } catch (e) {
-    console.error(`Error reading categories: ${e.message}`);
+    logError('Error reading categories', e.message);
     process.exit(1);
   }
 }
@@ -147,7 +115,7 @@ function collectCategoryTokens(categoryName, categoriesPath) {
 let filters = {};
 if (filtersDef.category) {
   // Single category reference
-  const tokens = collectCategoryTokens(filtersDef.category, path.join(baseDir, 'config', 'categories.json'));
+  const tokens = collectCategoryTokens(filtersDef.category, resolvePath(null, defaults.categoriesFile));
   filters = { description: { tokens } };
 } else if (filtersDef.filters) {
   // Regular filters
@@ -173,7 +141,7 @@ if (beginDate || endDate) {
 function matchesAllFilters(row, columnMap) {
   for (const [columnName, condition] of Object.entries(filters)) {
     if (!(columnName in columnMap)) {
-      console.error(`Error: Column "${columnName}" not found in CSV header`);
+      logError(`Column "${columnName}" not found in CSV header`);
       process.exit(1);
     }
     const columnIndex = columnMap[columnName];
@@ -191,7 +159,7 @@ try {
   const { headers, lines, columnMap } = readCSVLines(inputFile);
 
   if (lines.length < 1) {
-    console.error('Error: CSV file is empty');
+    logError('CSV file is empty');
     process.exit(1);
   }
 

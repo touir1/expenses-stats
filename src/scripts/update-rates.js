@@ -3,6 +3,9 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { parseArgs } = require('../utils/cli-args');
+const { getProjectRoot, resolvePath, getDefaultPaths } = require('../utils/path-resolver');
+const { logSuccess, logError, logWarning, logInfo } = require('../utils/console-output');
 
 /**
  * Fetch EUR to TND conversion rates from frankfurter.dev API
@@ -90,34 +93,21 @@ function getMonthDates(startDate, endDate) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  let startDate = null;
-  let endDate = null;
-  let baseCurrency = 'EUR';
-  let quoteCurrency = 'TND';
-  let showHelp = false;
-  let autoMode = false;
+  // Parse command-line arguments
+  const optionDefs = [
+    { flag: '--start', param: true, default: null },
+    { flag: '--end', param: true, default: null },
+    { flag: '--base', param: true, default: 'EUR' },
+    { flag: '--quote', param: true, default: 'TND' },
+    { flag: '--auto', param: false }
+  ];
 
-  // Parse arguments
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--start' && args[i + 1]) {
-      startDate = args[i + 1];
-      i++;
-    } else if (args[i] === '--end' && args[i + 1]) {
-      endDate = args[i + 1];
-      i++;
-    } else if (args[i] === '--base' && args[i + 1]) {
-      baseCurrency = args[i + 1].toUpperCase();
-      i++;
-    } else if (args[i] === '--quote' && args[i + 1]) {
-      quoteCurrency = args[i + 1].toUpperCase();
-      i++;
-    } else if (args[i] === '--auto') {
-      autoMode = true;
-    } else if (args[i] === '-h' || args[i] === '--help') {
-      showHelp = true;
-    }
-  }
+  const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
+  let startDate = parsedArgs['start'];
+  let endDate = parsedArgs['end'];
+  let baseCurrency = parsedArgs['base'].toUpperCase();
+  let quoteCurrency = parsedArgs['quote'].toUpperCase();
+  const autoMode = parsedArgs['auto'];
 
   if (showHelp) {
     console.log(`
@@ -159,7 +149,8 @@ Note:
   const today = new Date();
   const todayStr = today.toISOString().split('T')[0];
   
-  const csvPath = path.join(__dirname, '..', '..', 'config', 'conversion_rates.csv');
+  const defaults = getDefaultPaths();
+  const csvPath = resolvePath(null, defaults.configPath + '/conversion_rates.csv');
   
   // Auto mode: fetch from last date in CSV to today (for the specific pair)
   if (autoMode) {
@@ -202,13 +193,13 @@ Note:
           endDate = todayStr;
 
           if (startDate > todayStr) {
-            console.log(`✓ Rates are already up to date for ${baseCurrency}/${quoteCurrency}`);
+            logSuccess(`Rates are already up to date for ${baseCurrency}/${quoteCurrency}`);
             process.exit(0);
           }
         }
       }
     } catch (err) {
-      console.error(`Error reading CSV for auto mode: ${err.message}`);
+      logError('Error reading CSV for auto mode', err.message);
       startDate = '2022-08-01';
       endDate = todayStr;
     }
@@ -218,12 +209,11 @@ Note:
   startDate = startDate || '2022-08-01';
   endDate = endDate || todayStr;
 
-  console.log(`📊 Fetching ${baseCurrency}/${quoteCurrency} conversion rates (daily)...\n`);
-  console.log(`Start date:  ${startDate}`);
-  console.log(`End date:    ${endDate}`);
-  console.log(`Pair:        ${baseCurrency}/${quoteCurrency}`);
-  console.log(`API:         frankfurter.dev (FREE, batch mode, no limits)`);
-  console.log('');
+  logSection(`Fetching ${baseCurrency}/${quoteCurrency} conversion rates (daily)`);
+  logInfo(`Start date:  ${startDate}`);
+  logInfo(`End date:    ${endDate}`);
+  logInfo(`Pair:        ${baseCurrency}/${quoteCurrency}`);
+  logInfo(`API:         frankfurter.dev (FREE, batch mode, no limits)`);
 
   // Read existing rates (supports both old date,rate and new date,base,quote,rate format)
   const rates = []; // { date, base, quote, rate }
@@ -254,7 +244,7 @@ Note:
   let failCount = 0;
 
   // Fetch all rates (batch request via frankfurter.dev)
-  console.log('⏳ Fetching all daily rates from API...\n');
+  logInfo('Fetching all daily rates from API');
   
   try {
     const allRates = await fetchRates(startDate, endDate, baseCurrency, quoteCurrency);
@@ -291,7 +281,7 @@ Note:
     
     console.log(`✓ Successfully fetched ${successCount} daily rates from API`);
   } catch (err) {
-    console.log(`✗ Failed to fetch rates: ${err.message}`);
+    logError('Failed to fetch rates', err.message);
     failCount++;
   }
 

@@ -2,84 +2,48 @@ const fs = require('fs');
 const path = require('path');
 const { loadConversionRates, getRateForDate } = require('../utils/conversion-rates');
 const { readCSV, fileExists } = require('../utils/data');
+const { parseArgs } = require('../utils/cli-args');
+const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
+const { logSuccess, logError, logInfo } = require('../utils/console-output');
+const { getYearMonthKey } = require('../utils/date-utils');
 
 // Parse command-line arguments
-const args = process.argv.slice(2);
+const optionDefs = [
+  { flag: '--input-file', param: true, default: null },
+  { flag: '--output', param: true, default: 'console' },
+  { flag: '--output-file', param: true, default: null },
+  { flag: '--conversion-rates', param: true, default: null },
+  { flag: '--convert-to', param: true, default: null }
+];
 
-// Help function
-function showHelp() {
+const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
+
+if (showHelp) {
   console.log(`
 Usage: node stats.js [options]
 
 Options:
-  --input-file <path>        Input CSV file with expenses (default: ../../data/processed/depenses-labeled.csv)
+  --input-file <path>        Input CSV file with expenses (default: data/processed/depenses-labeled.csv)
   --output <mode>            Output mode: 'console', 'file', or 'both' (default: console)
-  --output-file <path>       Output JSON file path (default: ../../output/depenses-stats.json)
-  --conversion-rates <path>  Conversion rates CSV file (default: ../../config/conversion_rates.csv)
+  --output-file <path>       Output JSON file path (default: output/depenses-stats.json)
+  --conversion-rates <path>  Conversion rates CSV file (default: config/conversion_rates.csv)
   --convert-to <currency>    Convert amounts to currency: EUR or TND
   -h, --help                Show this help message
 
 Example:
-  node stats.js
-  node stats.js --input-file data/processed/depenses-labeled.csv --output file --output-file output/stats.json
+  node stats.js --input-file data/processed/depenses-labeled.csv --output file
   node stats.js --convert-to EUR
-  node stats.js -h
 `);
   process.exit(0);
 }
 
-// Check for help flag
-if (args.includes('-h') || args.includes('--help')) {
-  showHelp();
-}
-
-let inputFile = null;
-let outputMode = 'console'; // 'console', 'file', or 'both'
-let outputFile = null;
-let conversionRatesFile = null;
-let convertCurrency = null; // 'EUR' or 'TND'
-
-for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--input-file' && args[i + 1]) {
-    inputFile = args[i + 1];
-    i++;
-  } else if (args[i] === '--output' && args[i + 1]) {
-    outputMode = args[i + 1];
-    i++;
-  } else if (args[i] === '--output-file' && args[i + 1]) {
-    outputFile = args[i + 1];
-    i++;
-  } else if (args[i] === '--conversion-rates' && args[i + 1]) {
-    conversionRatesFile = args[i + 1];
-    i++;
-  } else if (args[i] === '--convert-to' && args[i + 1]) {
-    convertCurrency = args[i + 1].toUpperCase();
-    i++;
-  }
-}
-
-// Use defaults if not provided
-const baseDir = path.join(__dirname, '..', '..');
-if (!inputFile) {
-  inputFile = path.join(baseDir, 'data', 'processed', 'depenses-labeled.csv');
-}
-if (!outputFile) {
-  outputFile = path.join(baseDir, 'output', 'depenses-stats.json');
-}
-if (!conversionRatesFile) {
-  conversionRatesFile = path.join(baseDir, 'config', 'conversion_rates.csv');
-}
-
-// Make paths absolute if relative
-if (!path.isAbsolute(inputFile)) {
-  inputFile = path.join(process.cwd(), inputFile);
-}
-if (!path.isAbsolute(outputFile)) {
-  outputFile = path.join(process.cwd(), outputFile);
-}
-if (!path.isAbsolute(conversionRatesFile)) {
-  conversionRatesFile = path.join(process.cwd(), conversionRatesFile);
-}
+// Resolve paths using defaults
+const defaults = getDefaultPaths();
+const inputFile = resolvePath(parsedArgs['input-file'], defaults.inputFile);
+const outputFile = resolvePath(parsedArgs['output-file'], defaults.outputDir + '/depenses-stats.json');
+const conversionRatesFile = resolvePath(parsedArgs['conversion-rates'], defaults.conversionRatesFile);
+const outputMode = parsedArgs['output'] || 'console';
+const convertCurrency = parsedArgs['convert-to'] ? parsedArgs['convert-to'].toUpperCase() : null;
 
 // Load conversion rates
 const conversionRates = fileExists(conversionRatesFile) ? loadConversionRates(conversionRatesFile) : {};
@@ -88,7 +52,7 @@ const conversionRates = fileExists(conversionRatesFile) ? loadConversionRates(co
 const { headers, rows: csvRows } = readCSV(inputFile);
 
 if (csvRows.length === 0) {
-  console.error('Error: CSV file is empty or invalid');
+  logError('CSV file is empty or invalid');
   process.exit(1);
 }
 
@@ -100,7 +64,7 @@ const descriptionIdx = headers.indexOf('description');
 const categoryIdx    = headers.indexOf('category');
 
 if (amountIdx === -1 || currencySymbolIdx === -1 || currencyCodeIdx === -1 || dateIdx === -1) {
-  console.error('Error: CSV header is missing required columns');
+  logError('CSV header is missing required columns');
   process.exit(1);
 }
 
@@ -434,10 +398,10 @@ if (outputMode === 'console' || outputMode === 'both') {
 
 if (outputMode === 'file' || outputMode === 'both') {
   fs.writeFileSync(outputFile, jsonOutput, 'utf-8');
-  console.log(`✓ Stats saved to: ${outputFile}`);
+  logSuccess('Stats saved to file', outputFile);
 }
 
 if (!['console', 'file', 'both'].includes(outputMode)) {
-  console.error(`Invalid output mode: ${outputMode}. Use: console, file, or both`);
+  logError(`Invalid output mode: ${outputMode}. Use: console, file, or both`);
   process.exit(1);
 }

@@ -3,97 +3,10 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-
-// Color output
-const colors = {
-  reset: '\x1b[0m',
-  green: '\x1b[32m',
-  yellow: '\x1b[33m',
-  blue: '\x1b[34m',
-  red: '\x1b[31m'
-};
-
-function log(color, msg) {
-  console.log(`${colors[color]}${msg}${colors.reset}`);
-}
-
-function runCommand(cmd, args, description) {
-  return new Promise((resolve, reject) => {
-    log('blue', `\n📌 ${description}`);
-    const proc = spawn('node', [cmd, ...args], {
-      cwd: path.join(__dirname),
-      stdio: 'inherit'
-    });
-
-    proc.on('close', (code) => {
-      if (code !== 0) {
-        log('red', `❌ Command failed with exit code ${code}`);
-        reject(new Error(`${description} failed`));
-      } else {
-        log('green', `✓ ${description} completed`);
-        resolve();
-      }
-    });
-
-    proc.on('error', (err) => {
-      log('red', `❌ Error: ${err.message}`);
-      reject(err);
-    });
-  });
-}
-
-async function ensureRatesUpdated() {
-  try {
-    const ratesPath = path.join(__dirname, '..', '..', 'config', 'conversion_rates.csv');
-    const content = fs.readFileSync(ratesPath, 'utf-8');
-    const lines = content.trim().split('\n');
-    
-    if (lines.length < 2) {
-      log('yellow', 'Warning: conversion_rates.csv is empty or invalid');
-      return;
-    }
-
-    // Get the last date from the CSV (skip header)
-    const lastLine = lines[lines.length - 1];
-    const lastDate = lastLine.split(',')[0];
-    
-    // Get today's date in YYYY-MM-DD format
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-
-    if (lastDate !== todayStr) {
-      log('yellow', `\n⚠️  Conversion rates are outdated (last: ${lastDate}, today: ${todayStr})`);
-      log('blue', '📌 Attempting to update conversion rates...');
-      try {
-        const proc = spawn('node', ['update-rates.js', '--auto'], {
-          cwd: path.join(__dirname),
-          stdio: 'inherit'
-        });
-
-        await new Promise((resolve, reject) => {
-          proc.on('close', (code) => {
-            if (code === 0) {
-              log('green', '✓ Conversion rates updated');
-            } else {
-              log('yellow', `⚠️  Rate update failed with exit code ${code}, continuing with existing rates`);
-            }
-            resolve();
-          });
-          proc.on('error', () => {
-            log('yellow', '⚠️  Rate update failed, continuing with existing rates');
-            resolve();
-          });
-        });
-      } catch (err) {
-        log('yellow', `⚠️  Could not update rates: ${err.message}, continuing with existing rates`);
-      }
-    } else {
-      log('green', `✓ Conversion rates are current (${lastDate})`);
-    }
-  } catch (err) {
-    log('yellow', `⚠️  Could not check conversion rates: ${err.message}, continuing...`);
-  }
-}
+const { parseArgs } = require('../utils/cli-args');
+const { runCommand } = require('../utils/process-runner');
+const { ensureRatesUpdated } = require('../utils/rate-manager');
+const { logSuccess, logError, logWarning, logInfo } = require('../utils/console-output');
 
 function validateDateFormat(dateStr) {
   const regex = /^\d{2}\/\d{2}\/\d{4}$/;
@@ -101,31 +14,24 @@ function validateDateFormat(dateStr) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  let skipParsing = false;
-  let skipLabeling = false;
-  let beginDate = null;
-  let endDate = null;
-  let applyFilter = null;
-
   // Parse pipeline arguments
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--skip-parsing') skipParsing = true;
-    if (args[i] === '--skip-labeling') skipLabeling = true;
-    if (args[i] === '--begin-date' && args[i + 1]) {
-      beginDate = args[i + 1];
-      i++;
-    }
-    if (args[i] === '--end-date' && args[i + 1]) {
-      endDate = args[i + 1];
-      i++;
-    }
-    if (args[i] === '--filter' && args[i + 1]) {
-      applyFilter = args[i + 1];
-      i++;
-    }
-    if (args[i] === '-h' || args[i] === '--help') {
-      console.log(`
+  const optionDefs = [
+    { flag: '--skip-parsing', param: false },
+    { flag: '--skip-labeling', param: false },
+    { flag: '--begin-date', param: true, default: null },
+    { flag: '--end-date', param: true, default: null },
+    { flag: '--filter', param: true, default: null }
+  ];
+
+  const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
+  const skipParsing = parsedArgs['skip-parsing'];
+  const skipLabeling = parsedArgs['skip-labeling'];
+  let beginDate = parsedArgs['begin-date'];
+  let endDate = parsedArgs['end-date'];
+  const applyFilter = parsedArgs['filter'];
+
+  if (showHelp) {
+    console.log(`
 Usage: node pipeline-date-range.js [options]
 
 Pipeline Stages:
@@ -154,34 +60,33 @@ Output Files:
   - depenses-<begin>-to-<end>-stats.json
   - Or with filter: depenses-<begin>-to-<end>-<filter>-filtered.csv
 `);
-      process.exit(0);
-    }
+    process.exit(0);
   }
 
   // Validate date parameters
   if (!beginDate || !endDate) {
-    log('red', '❌ Error: --begin-date and --end-date are required');
+    logError('--begin-date and --end-date are required');
     console.log('Use --help for usage information');
     process.exit(1);
   }
 
   if (!validateDateFormat(beginDate)) {
-    log('red', `❌ Error: Invalid begin-date format "${beginDate}". Expected DD/MM/YYYY`);
+    logError(`Invalid begin-date format "${beginDate}". Expected DD/MM/YYYY`);
     process.exit(1);
   }
 
   if (!validateDateFormat(endDate)) {
-    log('red', `❌ Error: Invalid end-date format "${endDate}". Expected DD/MM/YYYY`);
+    logError(`Invalid end-date format "${endDate}". Expected DD/MM/YYYY`);
     process.exit(1);
   }
 
   const dateRangeSuffix = `${beginDate.replace(/\//g, '-')}-to-${endDate.replace(/\//g, '-')}`;
 
   try {
-    log('green', '╔════════════════════════════════════════════╗');
-    log('green', '║   EXPENSE ANALYSIS PIPELINE (DATE RANGE)   ║');
-    log('green', '╚════════════════════════════════════════════╝');
-    log('blue', `Date Range: ${beginDate} to ${endDate}\n`);
+    console.log('╔════════════════════════════════════════════╗');
+    console.log('║   EXPENSE ANALYSIS PIPELINE (DATE RANGE)   ║');
+    console.log('╚════════════════════════════════════════════╝');
+    console.log(`Date Range: ${beginDate} to ${endDate}\n`);
 
     // Check and update conversion rates if needed
     await ensureRatesUpdated();
@@ -189,28 +94,28 @@ Output Files:
     // Step 1: Parse
     if (!skipParsing) {
       await runCommand(
-        'parser.js',
+        path.join(__dirname, 'parser.js'),
         [],
-        'Step 1: Parsing depenses.txt to CSV'
+        { description: 'Step 1: Parsing depenses.txt to CSV' }
       );
     } else {
-      log('yellow', '⊘ Skipping parsing step');
+      console.log('⊘ Skipping parsing step');
     }
 
     // Step 2: Label
     if (!skipLabeling) {
       await runCommand(
-        'label.js',
+        path.join(__dirname, 'label.js'),
         [
           '--input-file', path.join(__dirname, '..', '..', 'data', 'processed', 'depenses.csv'),
           '--output-file', path.join(__dirname, '..', '..', 'data', 'processed', 'depenses-labeled.csv'),
           '--categories-file', path.join(__dirname, '..', '..', 'config', 'categories.json'),
           '--forced-categories-file', path.join(__dirname, '..', '..', 'config', 'forced-categories.json')
         ],
-        'Step 2: Labeling expenses with categories'
+        { description: 'Step 2: Labeling expenses with categories' }
       );
     } else {
-      log('yellow', '⊘ Skipping labeling step');
+      console.log('⊘ Skipping labeling step');
     }
 
     // Step 3: Filter by date range
@@ -218,14 +123,14 @@ Output Files:
     const dateFilteredOutput = path.join(__dirname, '..', '..', 'output', `depenses-${dateRangeSuffix}-filtered.csv`);
 
     await runCommand(
-      'filter.js',
+      path.join(__dirname, 'filter.js'),
       [
         '--input-file', inputForStats,
         '--output-file', dateFilteredOutput,
         '--begin-date', beginDate,
         '--end-date', endDate
       ],
-      `Step 3: Filtering by date range (${beginDate} to ${endDate})`
+      { description: `Step 3: Filtering by date range (${beginDate} to ${endDate})` }
     );
 
     inputForStats = dateFilteredOutput;
@@ -247,13 +152,13 @@ Output Files:
       const additionalFilteredOutput = path.join(__dirname, '..', '..', 'output', `depenses-${dateRangeSuffix}-${applyFilter}-filtered.csv`);
 
       await runCommand(
-        'filter.js',
+        path.join(__dirname, 'filter.js'),
         [
           '--input-file', inputForStats,
           '--output-file', additionalFilteredOutput,
           '--filters-file', filterFile
         ],
-        `Step 4: Applying additional "${applyFilter}" filter (${filterDef.description})`
+        { description: `Step 4: Applying additional "${applyFilter}" filter (${filterDef.description})` }
       );
 
       inputForStats = additionalFilteredOutput;
@@ -265,28 +170,28 @@ Output Files:
       : path.join(__dirname, '..', '..', 'output', `depenses-${dateRangeSuffix}-stats.json`);
 
     await runCommand(
-      'stats.js',
+      path.join(__dirname, 'stats.js'),
       [
         '--input-file', inputForStats,
         '--output', 'both',
         '--output-file', statsOutputFile,
         '--conversion-rates', path.join(__dirname, '..', '..', 'config', 'conversion_rates.csv')
       ],
-      applyFilter ? `Step 5: Generating statistics (date range + ${applyFilter} filter)` : 'Step 5: Generating statistics (date range filter)'
+      { description: applyFilter ? `Step 5: Generating statistics (date range + ${applyFilter} filter)` : 'Step 5: Generating statistics (date range filter)' }
     );
 
-    log('green', '\n╔════════════════════════════════════════════╗');
-    log('green', '║   🎉 PIPELINE COMPLETED SUCCESSFULLY!     ║');
-    log('green', '╚════════════════════════════════════════════╝\n');
+    console.log('\n╔════════════════════════════════════════════╗');
+    console.log('║   🎉 PIPELINE COMPLETED SUCCESSFULLY!     ║');
+    console.log('╚════════════════════════════════════════════╝\n');
 
-    log('blue', `Date Range: ${beginDate} to ${endDate}`);
+    console.log(`Date Range: ${beginDate} to ${endDate}`);
     if (applyFilter) {
-      log('blue', `Additional Filter: ${applyFilter}`);
+      console.log(`Additional Filter: ${applyFilter}`);
     }
-    log('blue', `Output: ${statsOutputFile}`);
+    console.log(`Output: ${statsOutputFile}`);
 
   } catch (err) {
-    log('red', `\n❌ Pipeline failed: ${err.message}`);
+    console.error(`\n❌ Pipeline failed: ${err.message}`);
     process.exit(1);
   }
 }

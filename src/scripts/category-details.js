@@ -6,29 +6,22 @@ const { parseCSVLine } = require('../utils/csv');
 const { normalizeStr } = require('../utils/text');
 const { loadConversionRates, convertToEUR } = require('../utils/conversion-rates');
 const { readCSVLines, fileExists } = require('../utils/data');
+const { parseArgs } = require('../utils/cli-args');
+const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
+const { logError, logInfo, logSuccess } = require('../utils/console-output');
 
 async function main() {
-  const args = process.argv.slice(2);
-  let category = null;
-  let subcategory = null;
-  let inputFile = null;
-  let showHelp = false;
+  // Parse command-line arguments
+  const optionDefs = [
+    { flag: '--category', param: true, default: null },
+    { flag: '--subcategory', param: true, default: null },
+    { flag: '--input-file', param: true, default: null }
+  ];
 
-  // Parse arguments
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--category' && args[i + 1]) {
-      category = args[i + 1];
-      i++;
-    } else if (args[i] === '--subcategory' && args[i + 1]) {
-      subcategory = args[i + 1];
-      i++;
-    } else if (args[i] === '--input-file' && args[i + 1]) {
-      inputFile = args[i + 1];
-      i++;
-    } else if (args[i] === '-h' || args[i] === '--help') {
-      showHelp = true;
-    }
-  }
+  const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
+  const category = parsedArgs['category'];
+  const subcategory = parsedArgs['subcategory'];
+  let inputFile = parsedArgs['input-file'];
 
   if (showHelp || !category) {
     console.log(`
@@ -59,21 +52,21 @@ Output:
   }
 
   // Resolve file paths
-  const baseDir = path.join(__dirname, '..', '..');
-  inputFile = inputFile || path.join(baseDir, 'data', 'processed', 'depenses-labeled.csv');
-  const conversionFile = path.join(baseDir, 'config', 'conversion_rates.csv');
+  const defaults = getDefaultPaths();
+  inputFile = resolvePath(inputFile, defaults.labeledFile);
+  const conversionFile = resolvePath(null, defaults.configPath + '/conversion_rates.csv');
 
   try {
     // Read CSV
     if (!fileExists(inputFile)) {
-      console.error(`Error: File not found: ${inputFile}`);
+      logError(`File not found: ${inputFile}`);
       process.exit(1);
     }
 
     const { headers: header, lines, columnMap } = readCSVLines(inputFile);
 
     if (lines.length < 2) {
-      console.error('Error: CSV file is empty or has no data rows');
+      logError('CSV file is empty or has no data rows');
       process.exit(1);
     }
 
@@ -85,7 +78,7 @@ Output:
     const categoryCol = columnMap['category'];
 
     if (categoryCol === undefined) {
-      console.error('Error: "category" column not found in CSV');
+      logError('"category" column not found in CSV');
       process.exit(1);
     }
 
@@ -111,7 +104,7 @@ Output:
 
     if (matchingRows.length === 0) {
       const searchStr = subcategory ? `${category}/${subcategory}` : category;
-      console.log(`\n⚠️  No entries found for: ${searchStr}`);
+      logWarning(`No entries found for: ${searchStr}`);
       process.exit(0);
     }
 
@@ -148,8 +141,9 @@ Output:
     });
 
     // Display table
-    console.log('📋 ENTRIES:');
-    console.log('');
+    logSection(`EXPENSE DETAILS: ${(subcategory ? `${category}/${subcategory}` : category).toUpperCase()}`);
+    logInfo('ENTRIES');
+    logInfo('');
     
     // Simple table formatting
     let cols = ['#', 'Date'];
@@ -191,8 +185,7 @@ Output:
 
     // Calculate statistics
     console.log('');
-    console.log('📊 SUMMARY STATISTICS:');
-    console.log('');
+    logSection('SUMMARY STATISTICS');
 
     const totalEntries = matchingRows.length;
     
@@ -317,7 +310,7 @@ Output:
     console.log('');
 
   } catch (err) {
-    console.error(`Error: ${err.message}`);
+    logError('Error', err.message);
     process.exit(1);
   }
 }
