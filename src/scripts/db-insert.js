@@ -1,7 +1,6 @@
-const fs = require('fs');
 const path = require('path');
-const sqlite3 = require('sqlite3').verbose();
 const { readCSV, loadCategories, fileExists, ensureDir } = require('../utils/data');
+const { openDatabase, initializeDatabase, loadCategoriesIntoDb, getCategoryIdByLabel, getExpenseCount, insertExpense, getRowCount } = require('../utils/db');
 
 const args = process.argv.slice(2);
 
@@ -54,288 +53,27 @@ if (!path.isAbsolute(categoriesFile)) categoriesFile = path.join(process.cwd(), 
 if (!path.isAbsolute(databaseFile)) databaseFile = path.join(process.cwd(), databaseFile);
 
 // Ensure database directory exists
-const dbDir = path.dirname(databaseFile);
-ensureDir(dbDir);
-if (!fs.existsSync(dbDir + '/.gitkeep') && !fs.existsSync(databaseFile)) {
-  console.log(`✓ Created directory: ${dbDir}`);
-}
-
-// Open database
-const db = new sqlite3.Database(databaseFile, (err) => {
-  if (err) {
-    console.error(`Error opening database: ${err.message}`);
-    process.exit(1);
-  }
-  console.log(`✓ Connected to database: ${databaseFile}`);
-});
-
-// Initialize database
-function initializeDatabase() {
-  return new Promise((resolve, reject) => {
-    db.serialize(() => {
-      if (deleteAll) {
-        db.run('DROP TABLE IF EXISTS expenses', () => {});
-        db.run('DROP TABLE IF EXISTS filters', () => {});
-        db.run('DROP TABLE IF EXISTS categories', () => {});
-        console.log('✓ Dropped existing tables');
-      }
-
-      // Create categories table
-      db.run(`
-        CREATE TABLE IF NOT EXISTS categories (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          parent_id INTEGER,
-          label TEXT NOT NULL UNIQUE,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (parent_id) REFERENCES categories(id)
-        )
-      `, (err) => {
-        if (err) {
-          console.error('Error creating categories table:', err.message);
-          reject(err);
-        }
-      });
-
-      // Create filters table
-      db.run(`
-        CREATE TABLE IF NOT EXISTS filters (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          category_id INTEGER NOT NULL,
-          column_name TEXT NOT NULL,
-          operator TEXT NOT NULL,
-          filter_value TEXT NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
-        )
-      `, (err) => {
-        if (err) {
-          console.error('Error creating filters table:', err.message);
-          reject(err);
-        }
-      });
-
-      // Create expenses table
-      db.run(`
-        CREATE TABLE IF NOT EXISTS expenses (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          amount REAL NOT NULL,
-          currency_symbol TEXT,
-          currency_code TEXT,
-          date TEXT NOT NULL,
-          description TEXT NOT NULL,
-          category_id INTEGER,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (category_id) REFERENCES categories(id)
-        )
-      `, (err) => {
-        if (err) {
-          console.error('Error creating expenses table:', err.message);
-          reject(err);
-        } else {
-          console.log('✓ Tables initialized');
-          resolve();
-        }
-      });
-    });
-  });
-}
-
-// Read categories file and populate categories and filters tables
-function loadCategories(filePath) {
-  return new Promise((resolve, reject) => {
-    try {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const data = JSON.parse(content);
-      const categories = data.categories || [];
-
-      console.log(`\nLoading ${categories.length} parent categories...`);
-
-      let processed = 0;
-      const categoryMap = {}; // name -> id mapping
-
-      const processCategory = (catDef, parentId = null, parentLabel = null, callback) => {
-        const label = parentLabel ? `${parentLabel}/${catDef.name}` : catDef.name;
-
-        db.run(
-          'INSERT OR REPLACE INTO categories (name, parent_id, label) VALUES (?, ?, ?)',
-          [catDef.name, parentId, label],
-          function(err) {
-            if (err) {
-              console.error(`Error inserting category ${catDef.name}:`, err.message);
-              callback(err);
-              return;
-            }
-
-            const categoryId = this.lastID;
-            categoryMap[catDef.name] = categoryId;
-
-            // Insert filters for this category
-            let filtersProcessed = 0;
-            const filters = catDef.filters || {};
-
-            if (Object.keys(filters).length === 0) {
-              // No filters, process subcategories
-              if (catDef.subcategories && catDef.subcategories.length > 0) {
-                let subProcessed = 0;
-                catDef.subcategories.forEach((subCat) => {
-                  processCategory(subCat, categoryId, label, (err) => {
-                    if (err) {
-                      callback(err);
-                      return;
-                    }
-                    subProcessed++;
-                    if (subProcessed === catDef.subcategories.length) {
-                      callback(null);
-                    }
-                  });
-                });
-              } else {
-                callback(null);
-              }
-            } else {
-              // Pre-compute total number of filter inserts
-              const totalFilterOps = Object.entries(filters).reduce((acc, [, cond]) => acc + Object.keys(cond).length, 0);
-
-              // Insert filters
-              Object.entries(filters).forEach(([colName, condition]) => {
-                Object.entries(condition).forEach(([operator, value]) => {
-                  const filterValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
-                  db.run(
-                    'INSERT INTO filters (category_id, column_name, operator, filter_value) VALUES (?, ?, ?, ?)',
-                    [categoryId, colName, operator, filterValue],
-                    (err) => {
-                      filtersProcessed++;
-                      if (err) {
-                        console.error(`Error inserting filter for ${catDef.name}:`, err.message);
-                      }
-                      // Process subcategories after all filters are inserted
-                      if (filtersProcessed === totalFilterOps) {
-                        if (catDef.subcategories && catDef.subcategories.length > 0) {
-                          let subProcessed = 0;
-                          catDef.subcategories.forEach((subCat) => {
-                            processCategory(subCat, categoryId, label, (err) => {
-                              if (err) {
-                                callback(err);
-                                return;
-                              }
-                              subProcessed++;
-                              if (subProcessed === catDef.subcategories.length) {
-                                callback(null);
-                              }
-                            });
-                          });
-                        } else {
-                          callback(null);
-                        }
-                      }
-                    }
-                  );
-                });
-              });
-            }
-          }
-        );
-      };
-
-      // Process all parent categories
-      let catProcessed = 0;
-      categories.forEach((cat) => {
-        processCategory(cat, null, null, (err) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-          catProcessed++;
-          if (catProcessed === categories.length) {
-            resolve();
-          }
-        });
-      });
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
-// Read CSV file
-function readCsvFile(filePath) {
-  return new Promise((resolve, reject) => {
-    try {
-      const { rows } = readCSV(filePath);
-      console.log(`✓ Read ${rows.length} rows from CSV`);
-      resolve(rows);
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
-// Get category ID by label (parent/child format)
-function getCategoryIdByLabel(label) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      'SELECT id FROM categories WHERE label = ?',
-      [label],
-      (err, row) => {
-        if (err) reject(err);
-        else resolve(row ? row.id : null);
-      }
-    );
-  });
-}
-
-// Get count of matching rows in database
-function getDbRowCount(date, categoryId, amount) {
-  return new Promise((resolve, reject) => {
-    db.get(
-      'SELECT COUNT(*) as count FROM expenses WHERE date = ? AND category_id = ? AND amount = ?',
-      [date, categoryId, parseFloat(amount)],
-      (err, row) => {
-        if (err) reject(err);
-        else resolve(row ? row.count : 0);
-      }
-    );
-  });
-}
-
-// Count matching rows in CSV data
-function getCsvRowCount(rows, date, categoryId, amount) {
-  return rows.filter(r => r.date === date && parseFloat(r.amount) === parseFloat(amount)).length;
-}
-
-// Insert a single row
-function insertRow(row, categoryId) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO expenses (amount, currency_symbol, currency_code, date, description, category_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [parseFloat(row.amount), row.currency_symbol, row.currency_code, row.date, row.description, categoryId],
-      function(err) {
-        if (err) reject(err);
-        else resolve(this.lastID);
-      }
-    );
-  });
-}
+ensureDir(path.dirname(databaseFile));
 
 // Main process
 async function main() {
+  let db;
   try {
-    // Initialize database
-    await initializeDatabase();
+    db = await openDatabase(databaseFile);
+    console.log(`✓ Connected to database: ${databaseFile}`);
 
-    // Load categories from JSON — only if table is empty or --delete-all was used
+    await initializeDatabase(db, { dropAll: deleteAll });
+    if (deleteAll) console.log('✓ Dropped and recreated tables');
+    console.log('✓ Tables initialized');
+
+    // Load categories — only if table is empty or --delete-all was used
     if (!fileExists(categoriesFile)) {
       throw new Error(`Categories file not found: ${categoriesFile}`);
     }
-    const catCount = await new Promise((resolve, reject) => {
-      db.get('SELECT COUNT(*) as count FROM categories', (err, row) => {
-        if (err) reject(err);
-        else resolve(row ? row.count : 0);
-      });
-    });
+    const catCount = await getRowCount(db, 'categories');
     if (deleteAll || catCount === 0) {
-      await loadCategories(categoriesFile);
+      const categories = loadCategories(categoriesFile);
+      await loadCategoriesIntoDb(db, categories);
       console.log('✓ Categories and filters loaded');
     } else {
       console.log(`✓ Categories already loaded (${catCount} entries), skipping`);
@@ -352,15 +90,14 @@ async function main() {
       throw new Error(`Input file not found: ${inputFile}`);
     }
 
-    const csvRows = await readCsvFile(inputFile);
+    const { rows: csvRows } = readCSV(inputFile);
+    console.log(`✓ Read ${csvRows.length} rows from CSV`);
 
     // Group rows by (date, category, amount) to check for duplicates
     const rowGroups = {};
     for (const row of csvRows) {
       const key = `${row.date}|${row.category}|${row.amount}`;
-      if (!rowGroups[key]) {
-        rowGroups[key] = [];
-      }
+      if (!rowGroups[key]) rowGroups[key] = [];
       rowGroups[key].push(row);
     }
 
@@ -376,15 +113,14 @@ async function main() {
       const [date, categoryLabel, amount] = key.split('|');
       const csvCount = groupRows.length;
 
-      // Get category ID from label
-      const categoryId = await getCategoryIdByLabel(categoryLabel);
+      const categoryId = await getCategoryIdByLabel(db, categoryLabel);
       if (!categoryId) {
         console.warn(`  ⚠ Category not found: ${categoryLabel}`);
         warningCount++;
         continue;
       }
 
-      const dbCount = await getDbRowCount(date, categoryId, amount);
+      const dbCount = await getExpenseCount(db, date, categoryId, amount);
 
       if (dbCount === csvCount) {
         skipCount += csvCount;
@@ -392,7 +128,7 @@ async function main() {
         const rowsToInsert = csvCount - dbCount;
         for (let i = 0; i < rowsToInsert; i++) {
           try {
-            await insertRow(groupRows[i], categoryId);
+            await insertExpense(db, groupRows[i], categoryId);
             insertCount++;
             insertedByCategory[categoryLabel] = (insertedByCategory[categoryLabel] || 0) + 1;
           } catch (err) {
@@ -413,7 +149,6 @@ async function main() {
     if (insertCount > 0) {
       console.log(`\n  Inserted by category:`);
 
-      // Group by parent / subcategory
       const grouped = {};
       for (const [label, count] of Object.entries(insertedByCategory)) {
         const slash = label.indexOf('/');
@@ -439,7 +174,7 @@ async function main() {
     });
   } catch (err) {
     console.error(`Error: ${err.message}`);
-    db.close();
+    if (db) db.close();
     process.exit(1);
   }
 }
