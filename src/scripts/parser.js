@@ -1,8 +1,15 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { parseArgs } = require('../utils/cli-args');
 const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
 const { logSuccess, logError } = require('../utils/console-output');
+
+// Generate a hash for transaction identification (description + currency + amount)
+function hashExpense(description, currencyCode, amount) {
+  const str = `${description}|${currencyCode}|${amount}`;
+  return crypto.createHash('sha256').update(str).digest('hex').slice(0, 16);
+}
 
 // Parse command-line arguments
 const optionDefs = [
@@ -31,7 +38,9 @@ Example:
 // Use defaults from path resolver
 const defaults = getDefaultPaths();
 const inputFile = resolvePath(parsedArgs['input-file'], defaults.rawFile);
-const outputFile = resolvePath(parsedArgs['output-file'], defaults.inputFile);
+// Parser outputs depenses.csv (not depenses-labeled.csv which is the labeled output)
+const defaultOutputFile = path.join(path.dirname(defaults.inputFile), 'depenses.csv');
+const outputFile = resolvePath(parsedArgs['output-file'], defaultOutputFile);
 
 const content = fs.readFileSync(inputFile, 'utf-8');
 const lines = content.split('\n');
@@ -78,8 +87,8 @@ for (const line of lines) {
   }
 }
 
-// Create CSV header
-let csv = 'amount,currency_symbol,currency_code,date,description\n';
+// Create CSV header with hash column
+let csv = 'amount,currency_symbol,currency_code,date,description,hash\n';
 
 // Currency code mapping
 const currencyCodeMap = {
@@ -87,7 +96,7 @@ const currencyCodeMap = {
   'dt': 'TND'
 };
 
-// Add expense rows
+// Add expense rows with hash
 for (const expense of expenses) {
   // Escape description if it contains commas or quotes
   const description = expense.description.includes(',') || expense.description.includes('"')
@@ -95,7 +104,8 @@ for (const expense of expenses) {
     : expense.description;
   
   const currencyCode = currencyCodeMap[expense.currency] || 'UNK';
-  csv += `${expense.amount},${expense.currency},${currencyCode},${expense.date},${description}\n`;
+  const hash = hashExpense(expense.description, currencyCode, parseFloat(expense.amount));
+  csv += `${expense.amount},${expense.currency},${currencyCode},${expense.date},${description},${hash}\n`;
 }
 
 // Write the CSV file

@@ -1,9 +1,10 @@
 const sqlite3 = require('sqlite3').verbose();
 const crypto = require('crypto');
 
-// Generate a hash for expense deduplication (date + category_id + amount)
-function hashExpense(date, categoryId, amount) {
-  const str = `${date}|${categoryId}|${amount}`;
+// Generate a hash for transaction identification (description + currency + amount)
+// Used for deduplication and as part of forced categorization key (with date)
+function hashExpense(description, currencyCode, amount) {
+  const str = `${description}|${currencyCode}|${amount}`;
   return crypto.createHash('sha256').update(str).digest('hex').slice(0, 16);
 }
 
@@ -26,6 +27,7 @@ function initializeDatabase(db, { dropAll = false } = {}) {
         db.run('DROP TABLE IF EXISTS category_filter_tokens', () => {});
         db.run('DROP TABLE IF EXISTS category_filters', () => {});
         db.run('DROP TABLE IF EXISTS category_patterns', () => {});
+        db.run('DROP TABLE IF EXISTS forced_categorizations', () => {});
         db.run('DROP TABLE IF EXISTS categories', () => {});
         db.run('DROP TABLE IF EXISTS conversion_rates', () => {});
       }
@@ -118,12 +120,27 @@ function initializeDatabase(db, { dropAll = false } = {}) {
         )
       `, (err) => { if (err) reject(err); });
 
+      db.run(`
+        CREATE TABLE IF NOT EXISTS forced_categorizations (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          hash TEXT NOT NULL,
+          date TEXT NOT NULL,
+          category_label TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(hash, date)
+        )
+      `, (err) => { if (err) reject(err); });
+
       // Index for nearest-prior-date lookup on conversion_rates
       db.run(`CREATE INDEX IF NOT EXISTS idx_conversion_rates_lookup ON conversion_rates (base, quote, date)`
         , (err) => { if (err) reject(err); });
 
       // Index for FK lookups: category_patterns by category
       db.run(`CREATE INDEX IF NOT EXISTS idx_category_patterns_category ON category_patterns (category_id)`
+        , (err) => { if (err) reject(err); });
+
+      // Index for fast lookups of forced categorizations by hash and date
+      db.run(`CREATE INDEX IF NOT EXISTS idx_forced_categorizations_lookup ON forced_categorizations (hash, date)`
         , (err) => { if (err) reject(err); else resolve(); });
     });
   });
@@ -307,7 +324,7 @@ function insertExpensesBatch(db, rows) {
         'INSERT INTO expenses (amount, currency_symbol, currency_code, date, description, category_id, hash) VALUES (?, ?, ?, ?, ?, ?, ?)'
       );
       for (const r of rows) {
-        const hash = hashExpense(r.date, r.category_id, parseFloat(r.amount));
+        const hash = hashExpense(r.description, r.currency_code, parseFloat(r.amount));
         stmt.run([parseFloat(r.amount), r.currency_symbol, r.currency_code, r.date, r.description, r.category_id, hash]);
       }
       stmt.finalize();
@@ -386,6 +403,76 @@ function removeFilterToken(db, filterId, token) {
       if (err) reject(err);
       else resolve(this.changes);
     });
+  });
+}
+
+// Load forced categorizations into DB.
+// forcedList: array of { date, description, currency, amount, category }
+// Hash is computed from description, currency, amount; combined with date for matching.
+function loadForcedCategorizationsIntoDb(db, forcedList) {
+  return new Promise((resolve, reject) => {
+    if (forcedList.length === 0) { resolve(); return; }
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      const stmt = db.prepare(
+        'INSERT OR REPLACE INTO forced_categorizations (hash, date, category_label) VALUES (?, ?, ?)'
+      );
+      for (const item of forcedList) {
+        // Compute hash from description, currency, amount
+        const currency = item.currency ? String(item.currency).toUpperCase() : 'TND';
+        const amount = parseFloat(item.amount);
+        const hash = hashExpense(item.description, currency, amount);
+        stmt.run([hash, item.date, item.category]);
+      }
+      stmt.finalize();
+      db.run('COMMIT', (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  });
+}
+
+// Check if a specific row (identified by hash and date) has a forced category.
+// Hash should be computed from description, currency, amount.
+// Returns the forced category label or null if no match.
+function getForcedCategoryFromDb(db, hash, date) {
+  return new Promise((resolve, reject) => {
+    if (!hash || !date) {
+      resolve(null);
+      return;
+    }
+
+    // Find exact match with hash and date
+    db.get(
+      `SELECT category_label
+       FROM forced_categorizations
+       WHERE hash = ? AND date = ?
+       LIMIT 1`,
+      [hash, date],
+      (err, row) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        resolve(row ? row.category_label : null);
+      }
+    );
+  });
+}
+
+// Get all forced categorizations as a list (for inspection/debugging)
+function getAllForcedCategorizationsFromDb(db) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT hash, date, category_label as category
+       FROM forced_categorizations
+       ORDER BY date DESC, hash`,
+      (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows || []);
+      }
+    );
   });
 }
 
@@ -519,6 +606,9 @@ module.exports = {
   getConversionRateFromDb,
   loadCategoryPatternsIntoDb,
   getCategoryPatternsFromDb,
+  loadForcedCategorizationsIntoDb,
+  getForcedCategoryFromDb,
+  getAllForcedCategorizationsFromDb,
   getAllCategoriesAsMap,
   getAllExpensesAsMap,
   hashExpense

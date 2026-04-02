@@ -1,17 +1,32 @@
 const path = require('path');
 const { readCSV, loadCategories, loadCategoryPatterns, fileExists } = require('../utils/data');
 const { openDatabase, initializeDatabase, loadCategoriesIntoDb, loadCategoryPatternsIntoDb,
-        loadConversionRatesIntoDb, getCategoryIdByLabel, getExpenseCount, insertExpense, insertExpensesBatch,
-        getRowCount, getAllCategoriesAsMap, getAllExpensesAsMap, hashExpense } = require('../utils/db');
+        loadForcedCategorizationsIntoDb, loadConversionRatesIntoDb, getCategoryIdByLabel, getExpenseCount, 
+        insertExpense, insertExpensesBatch, getRowCount, getAllCategoriesAsMap, getAllExpensesAsMap, 
+        hashExpense } = require('../utils/db');
 const { parseArgs } = require('../utils/cli-args');
 const { getDefaultPaths, resolvePath, ensureDir } = require('../utils/path-resolver');
 const { logSuccess, logError, logWarning, logInfo } = require('../utils/console-output');
+
+// Helper function to load forced categories from JSON file
+function loadForcedCategories(filePath) {
+  const fs = require('fs');
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    const data = JSON.parse(content);
+    return (data.forced && Array.isArray(data.forced)) ? data.forced : [];
+  } catch (err) {
+    console.warn(`Warning: Could not load forced categories from ${filePath}:`, err.message);
+    return [];
+  }
+}
 
 // Parse command-line arguments
 const optionDefs = [
   { flag: '--input-file', param: true, default: null },
   { flag: '--categories-file', param: true, default: null },
   { flag: '--category-patterns-file', param: true, default: null },
+  { flag: '--forced-categories-file', param: true, default: null },
   { flag: '--conversion-rates-file', param: true, default: null },
   { flag: '--database', param: true, default: null },
   { flag: '--delete-all', param: false }
@@ -24,13 +39,14 @@ if (showHelp) {
 Usage: node db-insert.js [options]
 
 Options:
-  --input-file <path>            Input labeled CSV file (default: data/processed/depenses-labeled.csv)
-  --categories-file <path>       Categories definition file (default: config/categories.json)
-  --category-patterns-file <path> Category patterns file (default: config/category-patterns.json)
-  --conversion-rates-file <path> Conversion rates CSV file (default: config/conversion_rates.csv)
-  --database <path>              SQLite database file (default: data/database/depenses.db)
-  --delete-all                   Delete all data and recreate the tables
-  -h, --help                    Show this help message
+  --input-file <path>              Input labeled CSV file (default: data/processed/depenses-labeled.csv)
+  --categories-file <path>         Categories definition file (default: config/categories.json)
+  --category-patterns-file <path>  Category patterns file (default: config/category-patterns.json)
+  --forced-categories-file <path>  Forced categories file (default: config/forced-categories.json)
+  --conversion-rates-file <path>   Conversion rates CSV file (default: config/conversion_rates.csv)
+  --database <path>                SQLite database file (default: data/database/depenses.db)
+  --delete-all                     Delete all data and recreate the tables
+  -h, --help                      Show this help message
 
 Examples:
   node db-insert.js --input-file data/processed/depenses-labeled.csv --database data/depenses.db
@@ -44,6 +60,7 @@ const defaults = getDefaultPaths();
 const inputFile = resolvePath(parsedArgs['input-file'], defaults.inputFile);
 const categoriesFile = resolvePath(parsedArgs['categories-file'], defaults.categoriesFile);
 const categoryPatternsFile = resolvePath(parsedArgs['category-patterns-file'], defaults.categoryPatternsFile);
+const forcedCategoriesFile = resolvePath(parsedArgs['forced-categories-file'], defaults.forcedCategoriesFile);
 const conversionRatesFile = resolvePath(parsedArgs['conversion-rates-file'], defaults.conversionRatesFile);
 const databaseFile = resolvePath(parsedArgs['database'], defaults.databaseFile);
 const deleteAll = parsedArgs['delete-all'] || false;
@@ -103,10 +120,18 @@ async function main() {
       logSuccess('Conversion rates already loaded', `${rateCount} entries, skipping`);
     }
 
-    if (deleteAll && !parsedArgs['input-file']) {
-      logSuccess('Database reset complete');
-      db.close();
-      return;
+    // Load forced categorizations — only if table is empty or --delete-all
+    const forcedCount = await getRowCount(db, 'forced_categorizations');
+    if (deleteAll || forcedCount === 0) {
+      if (fileExists(forcedCategoriesFile)) {
+        const forcedList = loadForcedCategories(forcedCategoriesFile);
+        await loadForcedCategorizationsIntoDb(db, forcedList);
+        logSuccess('Forced categorizations loaded', `${forcedList.length} entries`);
+      } else {
+        logWarning('Forced categorizations file not found, skipping');
+      }
+    } else {
+      logSuccess('Forced categorizations already loaded', `${forcedCount} entries, skipping`);
     }
 
     // Read CSV
@@ -117,14 +142,17 @@ async function main() {
     const { rows: csvRows } = readCSV(inputFile);
     logSuccess('Read CSV file', `${csvRows.length} rows`);
 
-    // Group rows by (date, category, amount) to check for duplicates
-    // Normalize amount to number for consistent key matching with database
+    // Group rows by HASH to check for duplicates
+    // Hash is unique identifier for each distinct transaction (description + currency + amount)
     const rowGroups = {};
     for (const row of csvRows) {
-      const normalizedAmount = parseFloat(row.amount);
-      const key = `${row.date}|${row.category}|${normalizedAmount}`;
-      if (!rowGroups[key]) rowGroups[key] = [];
-      rowGroups[key].push(row);
+      const hash = row.hash;
+      if (!hash) {
+        logWarning(`Row missing hash field`, `${row.date} • ${row.description}`);
+        continue;
+      }
+      if (!rowGroups[hash]) rowGroups[hash] = [];
+      rowGroups[hash].push(row);
     }
 
     let insertCount = 0;
@@ -132,7 +160,7 @@ async function main() {
     let warningCount = 0;
     const insertedByCategory = {};
 
-    logInfo(`Processing ${Object.keys(rowGroups).length} unique (date, category, amount) combinations`);
+    logInfo(`Processing ${Object.keys(rowGroups).length} unique hashes (distinct transactions)`);
     logInfo('Pre-loading categories and existing expenses for optimization');
 
     // Pre-load all categories into memory (1 query instead of per-group lookups)
@@ -147,39 +175,41 @@ async function main() {
     const rowsToInsert = [];
     let processedGroups = 0;
 
-    // Process each group to determine what needs inserting
-    for (const [key, groupRows] of Object.entries(rowGroups)) {
-      const [date, categoryLabel, amount] = key.split('|');
+    // Process each hash group to determine what needs inserting
+    for (const [hash, groupRows] of Object.entries(rowGroups)) {
       const csvCount = groupRows.length;
-      const categoryId = categoryMap[categoryLabel];
+      const firstRow = groupRows[0];
+      const categoryId = categoryMap[firstRow.category];
 
       if (!categoryId) {
-        logWarning(`Category not found: ${categoryLabel}`);
+        logWarning(`Category not found: ${firstRow.category}`);
         warningCount++;
         continue;
       }
 
-      // Use hash for dedup lookup
-      const hash = hashExpense(date, categoryId, parseFloat(amount));
+      // Check if this hash already exists in the database
       const dbCount = expenseMap[hash] || 0;
 
-      if (dbCount === csvCount) {
+      if (dbCount >= csvCount) {
+        // All rows with this hash are already in database
         skipCount += csvCount;
       } else if (csvCount > dbCount) {
+        // Need to insert the missing rows (those with the same hash)
+        // Since they have the same hash, they're identical, so just insert the difference
         const rowsNeeded = csvCount - dbCount;
         for (let i = 0; i < rowsNeeded; i++) {
           rowsToInsert.push({
-            amount: groupRows[i].amount,
-            currency_symbol: groupRows[i].currency_symbol,
-            currency_code: groupRows[i].currency_code,
-            date: groupRows[i].date,
-            description: groupRows[i].description,
+            amount: firstRow.amount,
+            currency_symbol: firstRow.currency_symbol,
+            currency_code: firstRow.currency_code,
+            date: firstRow.date,
+            description: firstRow.description,
             category_id: categoryId
           });
-          insertedByCategory[categoryLabel] = (insertedByCategory[categoryLabel] || 0) + 1;
+          insertedByCategory[firstRow.category] = (insertedByCategory[firstRow.category] || 0) + 1;
         }
       } else {
-        logWarning(`Database has ${dbCount} rows vs CSV has ${csvCount}`, `${date} • ${categoryLabel} • ${amount}`);
+        logWarning(`Database has ${dbCount} rows vs CSV has ${csvCount}`, `${hash.substring(0, 8)}... • ${firstRow.category}`);
         warningCount++;
       }
       processedGroups++;

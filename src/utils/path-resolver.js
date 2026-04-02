@@ -38,6 +38,7 @@ function getDefaultPaths() {
     rawFile: path.join(root, 'data', 'raw', 'depenses.txt'),
     categoriesFile: path.join(root, 'config', 'categories.json'),
     categoryPatternsFile: path.join(root, 'config', 'category-patterns.json'),
+    forcedCategoriesFile: path.join(root, 'config', 'forced-categories.json'),
     conversionRatesFile: path.join(root, 'config', 'conversion_rates.csv'),
     databaseFile: path.join(root, 'data', 'database', 'depenses.db'),
     outputDir: path.join(root, 'output'),
