@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
+const { parseCSVLine } = require('../utils/csv');
 
 const args = process.argv.slice(2);
 
@@ -255,31 +256,6 @@ function loadCategories(filePath) {
       reject(err);
     }
   });
-}
-
-// Parse a CSV line respecting quoted fields
-function parseCSVLine(line) {
-  const fields = [];
-  let i = 0;
-  while (i < line.length) {
-    if (line[i] === '"') {
-      let field = '';
-      i++;
-      while (i < line.length) {
-        if (line[i] === '"' && line[i + 1] === '"') { field += '"'; i += 2; }
-        else if (line[i] === '"') { i++; break; }
-        else { field += line[i++]; }
-      }
-      fields.push(field);
-      if (line[i] === ',') i++;
-    } else {
-      const end = line.indexOf(',', i);
-      if (end === -1) { fields.push(line.slice(i)); break; }
-      fields.push(line.slice(i, end));
-      i = end + 1;
-    }
-  }
-  return fields;
 }
 
 // Read CSV file

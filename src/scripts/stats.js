@@ -1,5 +1,7 @@
 const fs = require('fs');
 const path = require('path');
+const { parseCSVLine } = require('../utils/csv');
+const { loadConversionRates, getRateForDate } = require('../utils/conversion-rates');
 
 // Parse command-line arguments
 const args = process.argv.slice(2);
@@ -80,19 +82,7 @@ if (!path.isAbsolute(conversionRatesFile)) {
 }
 
 // Load conversion rates
-const conversionRates = {};
-if (fs.existsSync(conversionRatesFile)) {
-  const ratesContent = fs.readFileSync(conversionRatesFile, 'utf-8');
-  const ratesLines = ratesContent.split('\n').filter(l => l.trim());
-  
-  for (let i = 1; i < ratesLines.length; i++) {
-    const [date, rate] = ratesLines[i].split(',');
-    if (date && rate) {
-      // Store by full date (YYYY-MM-DD)
-      conversionRates[date.trim()] = parseFloat(rate);
-    }
-  }
-}
+const conversionRates = fs.existsSync(conversionRatesFile) ? loadConversionRates(conversionRatesFile) : {};
 
 // Read and parse CSV
 const content = fs.readFileSync(inputFile, 'utf-8');
@@ -136,61 +126,7 @@ for (let i = 1; i < lines.length; i++) {
   });
 }
 
-// Helper function to get conversion rate for a date
-// Parse a CSV line respecting quoted fields
-function parseCSVLine(line) {
-  const fields = [];
-  let i = 0;
-  while (i < line.length) {
-    if (line[i] === '"') {
-      let field = '';
-      i++;
-      while (i < line.length) {
-        if (line[i] === '"' && line[i + 1] === '"') { field += '"'; i += 2; }
-        else if (line[i] === '"') { i++; break; }
-        else { field += line[i++]; }
-      }
-      fields.push(field);
-      if (line[i] === ',') i++;
-    } else {
-      const end = line.indexOf(',', i);
-      if (end === -1) { fields.push(line.slice(i)); break; }
-      fields.push(line.slice(i, end));
-      i = end + 1;
-    }
-  }
-  return fields;
-}
-
-function getConversionRate(dateStr) {
-  // dateStr is DD/MM/YYYY
-  const parts = dateStr.split('/');
-  if (parts.length === 3) {
-    const day = parts[0].padStart(2, '0');
-    const month = parts[1].padStart(2, '0');
-    const year = parts[2];
-    const fullDate = `${year}-${month}-${day}`;
-    
-    // Try exact date first
-    if (conversionRates[fullDate]) {
-      return conversionRates[fullDate];
-    }
-    
-    // Fall back to first available date before this date
-    const rateKeys = Object.keys(conversionRates).sort();
-    for (let i = rateKeys.length - 1; i >= 0; i--) {
-      if (rateKeys[i] <= fullDate) {
-        return conversionRates[rateKeys[i]];
-      }
-    }
-    
-    // If no rate before, use the first available rate
-    if (rateKeys.length > 0) {
-      return conversionRates[rateKeys[0]];
-    }
-  }
-  return 3.5; // Default fallback
-}
+function getConversionRate(dateStr) { return getRateForDate(dateStr, conversionRates); }
 
 // Convert amounts if requested
 if (convertCurrency && (convertCurrency === 'EUR' || convertCurrency === 'TND')) {

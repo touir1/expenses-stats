@@ -2,90 +2,9 @@
 
 const fs = require('fs');
 const path = require('path');
-
-// Parse a CSV line respecting quoted fields
-function parseCSVLine(line) {
-  const fields = [];
-  let i = 0;
-  while (i < line.length) {
-    if (line[i] === '"') {
-      let field = '';
-      i++;
-      while (i < line.length) {
-        if (line[i] === '"' && line[i + 1] === '"') { field += '"'; i += 2; }
-        else if (line[i] === '"') { i++; break; }
-        else { field += line[i++]; }
-      }
-      fields.push(field);
-      if (line[i] === ',') i++;
-    } else {
-      const end = line.indexOf(',', i);
-      if (end === -1) { fields.push(line.slice(i)); break; }
-      fields.push(line.slice(i, end));
-      i = end + 1;
-    }
-  }
-  return fields;
-}
-
-function normalizeStr(s) {
-  return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-}
-
-function loadConversionRates(csvPath) {
-  try {
-    const content = fs.readFileSync(csvPath, 'utf-8');
-    const lines = content.split('\n').filter(l => l.trim());
-    const rates = {};
-    for (let i = 1; i < lines.length; i++) {
-      const [date, rate] = lines[i].split(',');
-      if (date && rate) {
-        // Store by full date (YYYY-MM-DD) for daily rates
-        rates[date.trim()] = parseFloat(rate);
-      }
-    }
-    return rates;
-  } catch (e) {
-    console.error('Warning: Could not read conversion rates:', e.message);
-    return {};
-  }
-}
-
-function getRateForDate(dateStr, rates) {
-  // dateStr is DD/MM/YYYY
-  const parts = dateStr.split('/');
-  if (parts.length === 3) {
-    const day = parts[0].padStart(2, '0');
-    const month = parts[1].padStart(2, '0');
-    const year = parts[2];
-    const fullDate = `${year}-${month}-${day}`;
-    
-    // Try exact date first
-    if (rates[fullDate]) {
-      return rates[fullDate];
-    }
-    
-    // Fall back to first available date before this date
-    const rateKeys = Object.keys(rates).sort();
-    for (let i = rateKeys.length - 1; i >= 0; i--) {
-      if (rateKeys[i] <= fullDate) {
-        return rates[rateKeys[i]];
-      }
-    }
-    
-    // If no rate before, use the first available rate
-    if (rateKeys.length > 0) {
-      return rates[rateKeys[0]];
-    }
-  }
-  return 3.5; // Default fallback
-}
-
-function convertToEUR(amount, currency, dateStr, rates) {
-  if (currency === 'EUR') return amount;
-  const rate = getRateForDate(dateStr, rates);
-  return amount / rate;
-}
+const { parseCSVLine } = require('../utils/csv');
+const { normalizeStr } = require('../utils/text');
+const { loadConversionRates, getRateForDate, convertToEUR } = require('../utils/conversion-rates');
 
 async function main() {
   const args = process.argv.slice(2);

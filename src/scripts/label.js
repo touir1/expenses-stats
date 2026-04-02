@@ -1,5 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+const { parseCSVLine } = require('../utils/csv');
+const { normalizeStr, countTokenMatches } = require('../utils/text');
+const { matchesFilter } = require('../utils/filtering');
 
 const args = process.argv.slice(2);
 
@@ -136,45 +139,7 @@ if (categoryDefs.length === 0) {
   process.exit(1);
 }
 
-// Parse a CSV line respecting quoted fields
-function parseCSVLine(line) {
-  const fields = [];
-  let i = 0;
-  while (i < line.length) {
-    if (line[i] === '"') {
-      let field = '';
-      i++;
-      while (i < line.length) {
-        if (line[i] === '"' && line[i + 1] === '"') { field += '"'; i += 2; }
-        else if (line[i] === '"') { i++; break; }
-        else { field += line[i++]; }
-      }
-      fields.push(field);
-      if (line[i] === ',') i++;
-    } else {
-      const end = line.indexOf(',', i);
-      if (end === -1) { fields.push(line.slice(i)); break; }
-      fields.push(line.slice(i, end));
-      i = end + 1;
-    }
-  }
-  return fields;
-}
 
-// Strip accents and lowercase for accent-insensitive matching
-function normalizeStr(s) {
-  return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-}
-
-// Count how many tokens match value as whole words (word-boundary + accent normalization)
-function countTokenMatches(value, tokens) {
-  const normValue = normalizeStr(value);
-  return tokens.reduce((count, token) => {
-    const normToken = normalizeStr(token);
-    const escaped = normToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return count + (new RegExp('\\b' + escaped + '\\b', 'i').test(normValue) ? 1 : 0);
-  }, 0);
-}
 
 // Sum token-match scores across all token filters in a category definition
 function getCategoryScore(row, columnMap, filters) {
@@ -188,42 +153,7 @@ function getCategoryScore(row, columnMap, filters) {
   return score;
 }
 
-// Match a single value against a filter condition
-function matchesFilter(value, condition) {
-  if (typeof condition !== 'object' || condition === null) {
-    return String(value) === String(condition);
-  }
-  for (const [op, operand] of Object.entries(condition)) {
-    const numVal = parseFloat(value);
-    const numOp = parseFloat(operand);
-    switch (op) {
-      case 'eq':   if (String(value) !== String(operand)) return false; break;
-      case 'ne':   if (String(value) === String(operand)) return false; break;
-      case 'gt':   if (isNaN(numVal) || isNaN(numOp) || numVal <= numOp) return false; break;
-      case 'gte':  if (isNaN(numVal) || isNaN(numOp) || numVal < numOp) return false; break;
-      case 'lt':   if (isNaN(numVal) || isNaN(numOp) || numVal >= numOp) return false; break;
-      case 'lte':  if (isNaN(numVal) || isNaN(numOp) || numVal > numOp) return false; break;
-      case 'contains':    if (!String(value).includes(String(operand))) return false; break;
-      case 'startsWith':  if (!String(value).startsWith(String(operand))) return false; break;
-      case 'endsWith':    if (!String(value).endsWith(String(operand))) return false; break;
-      case 'regex':
-        try {
-          const rx = new RegExp(operand, 'i');
-          if (!rx.test(String(value)) && !rx.test(normalizeStr(String(value)))) return false;
-        }
-        catch (e) { console.error(`Invalid regex "${operand}": ${e.message}`); process.exit(1); }
-        break;
-      case 'tokens':
-        if (!Array.isArray(operand) || countTokenMatches(String(value), operand) === 0) return false;
-        break;
-      case 'in':   if (!Array.isArray(operand) || !operand.map(String).includes(String(value))) return false; break;
-      case 'nin':  if (!Array.isArray(operand) || operand.map(String).includes(String(value))) return false; break;
-      default:
-        console.error(`Error: Unknown operator "${op}"`); process.exit(1);
-    }
-  }
-  return true;
-}
+
 
 // Collect all tokens from subcategories (if category has no explicit filters)
 function collectSubcategoryTokens(catDef) {

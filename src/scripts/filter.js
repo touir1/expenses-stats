@@ -1,5 +1,8 @@
 const fs = require('fs');
 const path = require('path');
+const { parseCSVLine } = require('../utils/csv');
+const { normalizeStr, countTokenMatches } = require('../utils/text');
+const { matchesFilter, dateToComparable } = require('../utils/filtering');
 
 // Parse command-line arguments
 const args = process.argv.slice(2);
@@ -163,137 +166,6 @@ if (beginDate || endDate) {
   if (endDate) {
     filters.date.lte = endDate;
   }
-}
-
-// Function to match a value against filter conditions
-
-// Convert DD/MM/YYYY date to comparable format YYYYMMDD
-function dateToComparable(dateStr) {
-  const parts = dateStr.split('/');
-  if (parts.length === 3) {
-    return parts[2] + parts[1] + parts[0];
-  }
-  return dateStr;
-}
-
-// Strip accents and lowercase for accent-insensitive matching
-// Parse a CSV line respecting quoted fields
-function parseCSVLine(line) {
-  const fields = [];
-  let i = 0;
-  while (i < line.length) {
-    if (line[i] === '"') {
-      let field = '';
-      i++;
-      while (i < line.length) {
-        if (line[i] === '"' && line[i + 1] === '"') { field += '"'; i += 2; }
-        else if (line[i] === '"') { i++; break; }
-        else { field += line[i++]; }
-      }
-      fields.push(field);
-      if (line[i] === ',') i++;
-    } else {
-      const end = line.indexOf(',', i);
-      if (end === -1) { fields.push(line.slice(i)); break; }
-      fields.push(line.slice(i, end));
-      i = end + 1;
-    }
-  }
-  return fields;
-}
-
-function normalizeStr(s) {
-  return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-}
-
-// Count whole-word token matches (word boundaries + accent normalization)
-function countTokenMatches(value, tokens) {
-  const normValue = normalizeStr(value);
-  return tokens.reduce((count, token) => {
-    const normToken = normalizeStr(token);
-    const escaped = normToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return count + (new RegExp('\\b' + escaped + '\\b', 'i').test(normValue) ? 1 : 0);
-  }, 0);
-}
-
-function matchesFilter(value, filterCondition, columnName) {
-  // If filterCondition is a simple value, do exact match
-  if (typeof filterCondition !== 'object' || filterCondition === null) {
-    return String(value) === String(filterCondition);
-  }
-
-  // Check each operator in the filter condition
-  for (const [operator, operand] of Object.entries(filterCondition)) {
-    const numValue = parseFloat(value);
-    const numOperand = parseFloat(operand);
-    
-    switch (operator) {
-      case 'eq':
-        if (String(value) !== String(operand)) return false;
-        break;
-      case 'ne':
-        if (String(value) === String(operand)) return false;
-        break;
-      case 'gt':
-        if (isNaN(numValue) || isNaN(numOperand) || numValue <= numOperand) return false;
-        break;
-      case 'gte':
-        // Special handling for date comparisons (DD/MM/YYYY format)
-        if (columnName === 'date' && value.includes('/') && operand.includes('/')) {
-          const comparableValue = dateToComparable(value);
-          const comparableOperand = dateToComparable(operand);
-          if (comparableValue < comparableOperand) return false;
-        } else {
-          if (isNaN(numValue) || isNaN(numOperand) || numValue < numOperand) return false;
-        }
-        break;
-      case 'lt':
-        if (isNaN(numValue) || isNaN(numOperand) || numValue >= numOperand) return false;
-        break;
-      case 'lte':
-        // Special handling for date comparisons (DD/MM/YYYY format)
-        if (columnName === 'date' && value.includes('/') && operand.includes('/')) {
-          const comparableValue = dateToComparable(value);
-          const comparableOperand = dateToComparable(operand);
-          if (comparableValue > comparableOperand) return false;
-        } else {
-          if (isNaN(numValue) || isNaN(numOperand) || numValue > numOperand) return false;
-        }
-        break;
-      case 'contains':
-        if (!String(value).includes(String(operand))) return false;
-        break;
-      case 'startsWith':
-        if (!String(value).startsWith(String(operand))) return false;
-        break;
-      case 'endsWith':
-        if (!String(value).endsWith(String(operand))) return false;
-        break;
-      case 'regex':
-        try {
-          const rx = new RegExp(operand, 'i');
-          if (!rx.test(String(value)) && !rx.test(normalizeStr(String(value)))) return false;
-        } catch (e) {
-          console.error(`Error: Invalid regex "${operand}":`, e.message);
-          process.exit(1);
-        }
-        break;
-      case 'tokens':
-        if (!Array.isArray(operand) || countTokenMatches(String(value), operand) === 0) return false;
-        break;
-      case 'in':
-        if (!Array.isArray(operand) || !operand.includes(String(value))) return false;
-        break;
-      case 'nin':
-        if (!Array.isArray(operand) || operand.includes(String(value))) return false;
-        break;
-      default:
-        console.error(`Error: Unknown operator "${operator}"`);
-        process.exit(1);
-    }
-  }
-
-  return true;
 }
 
 // Function to check if a row matches all filters
