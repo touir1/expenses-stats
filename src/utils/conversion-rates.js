@@ -3,19 +3,36 @@ const fs = require('fs');
 const DEFAULT_RATE = 3.5;
 
 /**
- * Load conversion rates from a CSV file (date,rate format).
+ * Load conversion rates from a CSV file.
+ * Supports both old format (date,rate) and new format (date,base,quote,rate).
  * @param {string} csvPath
+ * @param {string} base   Base currency (default: 'EUR')
+ * @param {string} quote  Quote currency (default: 'TND')
  * @returns {Object.<string, number>} Map of YYYY-MM-DD -> rate
  */
-function loadConversionRates(csvPath) {
+function loadConversionRates(csvPath, base = 'EUR', quote = 'TND') {
   try {
     const content = fs.readFileSync(csvPath, 'utf-8');
     const lines = content.split('\n').filter(l => l.trim());
     const rates = {};
+    if (lines.length < 2) return rates;
+
+    const header = lines[0].split(',').map(h => h.trim());
+    const isNewFormat = header.length >= 4 && header[1] === 'base';
+
     for (let i = 1; i < lines.length; i++) {
-      const [date, rate] = lines[i].split(',');
-      if (date && rate) {
-        rates[date.trim()] = parseFloat(rate);
+      const cols = lines[i].split(',');
+      if (isNewFormat) {
+        const [d, rowBase, rowQuote, rate] = cols;
+        if (d && rate && rowBase.trim() === base && rowQuote.trim() === quote) {
+          rates[d.trim()] = parseFloat(rate);
+        }
+      } else {
+        // Old format: date,rate — all rows are implicitly EUR/TND
+        const [d, rate] = cols;
+        if (d && rate) {
+          rates[d.trim()] = parseFloat(rate);
+        }
       }
     }
     return rates;

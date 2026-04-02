@@ -14,11 +14,11 @@ const path = require('path');
 
 const API_BASE = 'https://api.frankfurter.dev/v2/rates';
 
-function fetchRates(startDate, endDate) {
+function fetchRates(startDate, endDate, base, quote) {
   return new Promise((resolve, reject) => {
     // Format: YYYY-MM-DD
     // Returns rates for date range
-    const url = `${API_BASE}?base=EUR&quotes=TND&from=${startDate}&to=${endDate}`;
+    const url = `${API_BASE}?base=${base}&quotes=${quote}&from=${startDate}&to=${endDate}`;
 
     const request = https.get(url, (res) => {
       let data = '';
@@ -93,6 +93,8 @@ async function main() {
   const args = process.argv.slice(2);
   let startDate = null;
   let endDate = null;
+  let baseCurrency = 'EUR';
+  let quoteCurrency = 'TND';
   let showHelp = false;
   let autoMode = false;
 
@@ -103,6 +105,12 @@ async function main() {
       i++;
     } else if (args[i] === '--end' && args[i + 1]) {
       endDate = args[i + 1];
+      i++;
+    } else if (args[i] === '--base' && args[i + 1]) {
+      baseCurrency = args[i + 1].toUpperCase();
+      i++;
+    } else if (args[i] === '--quote' && args[i + 1]) {
+      quoteCurrency = args[i + 1].toUpperCase();
       i++;
     } else if (args[i] === '--auto') {
       autoMode = true;
@@ -115,13 +123,15 @@ async function main() {
     console.log(`
 Usage: node update-rates.js [options]
 
-Fetch EUR to TND conversion rates and update config/conversion_rates.csv
+Fetch currency conversion rates and update config/conversion_rates.csv
 Uses frankfurter.dev API (FREE, no limits, no authentication required)
 Batch requests: fetches all daily rates for the entire date range in one API call
 
 Options:
   --start <YYYY-MM-DD>   Start date (default: 2022-08-01 or last date in CSV with --auto)
   --end <YYYY-MM-DD>     End date (default: today)
+  --base <CODE>          Base currency (default: EUR)
+  --quote <CODE>         Quote currency (default: TND)
   --auto                 Auto incremental update: fetch from last date in CSV to today
   -h, --help            Show this help message
 
@@ -131,15 +141,16 @@ GitHub: https://github.com/hakanensari/frankfurter
 Examples:
   node update-rates.js
   node update-rates.js --start 2024-01-01 --end 2024-12-31
+  node update-rates.js --base EUR --quote USD --auto
   node update-rates.js --auto
   npm run update-rates
 
 Note:
+  - CSV format: date,base,quote,rate
   - Fetches all daily rates for the requested date range in a single batch request
   - Free API with unlimited requests
   - Historical rates available from 1999 onwards
-  - CSV contains daily rates (one rate per day)
-  - --auto mode fetches new rates from the last date in the CSV onwards
+  - --auto mode fetches new rates from the last date in the CSV for the given pair
 `);
     process.exit(0);
   }
@@ -150,31 +161,50 @@ Note:
   
   const csvPath = path.join(__dirname, '..', '..', 'config', 'conversion_rates.csv');
   
-  // Auto mode: fetch from last date in CSV to today
+  // Auto mode: fetch from last date in CSV to today (for the specific pair)
   if (autoMode) {
     try {
       const content = fs.readFileSync(csvPath, 'utf-8');
-      const lines = content.trim().split('\n');
-      
+      const lines = content.trim().split('\n').filter(l => l.trim());
+
       if (lines.length < 2) {
-        // Empty CSV, start from default
         startDate = '2022-08-01';
         endDate = todayStr;
       } else {
-        // Get last date from CSV and start from next day
-        const lastLine = lines[lines.length - 1];
-        const lastDate = lastLine.split(',')[0];
-        
-        // Parse last date and add 1 day
-        const lastDateObj = new Date(lastDate + 'T00:00:00Z');
-        lastDateObj.setUTCDate(lastDateObj.getUTCDate() + 1);
-        startDate = lastDateObj.toISOString().split('T')[0];
-        endDate = todayStr;
-        
-        // If last date is today or later, nothing to fetch
-        if (startDate > todayStr) {
-          console.log('✓ Rates are already up to date');
-          process.exit(0);
+        const header = lines[0].split(',').map(h => h.trim());
+        const isNewFormat = header.length >= 4 && header[1] === 'base';
+
+        // Find last date for this specific pair
+        let lastDate = null;
+        for (let i = lines.length - 1; i >= 1; i--) {
+          const cols = lines[i].split(',');
+          if (isNewFormat) {
+            if (cols[1]?.trim() === baseCurrency && cols[2]?.trim() === quoteCurrency) {
+              lastDate = cols[0].trim();
+              break;
+            }
+          } else {
+            // Old format: all rows are EUR/TND
+            if (baseCurrency === 'EUR' && quoteCurrency === 'TND') {
+              lastDate = cols[0].trim();
+              break;
+            }
+          }
+        }
+
+        if (!lastDate) {
+          startDate = '2022-08-01';
+          endDate = todayStr;
+        } else {
+          const lastDateObj = new Date(lastDate + 'T00:00:00Z');
+          lastDateObj.setUTCDate(lastDateObj.getUTCDate() + 1);
+          startDate = lastDateObj.toISOString().split('T')[0];
+          endDate = todayStr;
+
+          if (startDate > todayStr) {
+            console.log(`✓ Rates are already up to date for ${baseCurrency}/${quoteCurrency}`);
+            process.exit(0);
+          }
         }
       }
     } catch (err) {
@@ -188,78 +218,71 @@ Note:
   startDate = startDate || '2022-08-01';
   endDate = endDate || todayStr;
 
-  console.log('📊 Fetching EUR to TND conversion rates (daily)...\n');
-  console.log(`Start date: ${startDate}`);
-  console.log(`End date: ${endDate}`);
-  console.log(`API: frankfurter.dev (FREE, batch mode, no limits)`);
+  console.log(`📊 Fetching ${baseCurrency}/${quoteCurrency} conversion rates (daily)...\n`);
+  console.log(`Start date:  ${startDate}`);
+  console.log(`End date:    ${endDate}`);
+  console.log(`Pair:        ${baseCurrency}/${quoteCurrency}`);
+  console.log(`API:         frankfurter.dev (FREE, batch mode, no limits)`);
   console.log('');
 
-  // Read existing rates
-  let existingRates = {};
+  // Read existing rates (supports both old date,rate and new date,base,quote,rate format)
+  const rates = []; // { date, base, quote, rate }
   if (fs.existsSync(csvPath)) {
     const content = fs.readFileSync(csvPath, 'utf-8');
-    const lines = content.split('\n').filter(l => l.trim() && !l.startsWith('date'));
-    for (const line of lines) {
-      const [date, rate] = line.split(',');
-      if (date && rate) {
-        // Store by full date (YYYY-MM-DD)
-        existingRates[date.trim()] = parseFloat(rate);
+    const lines = content.split('\n').filter(l => l.trim());
+    if (lines.length >= 2) {
+      const header = lines[0].split(',').map(h => h.trim());
+      const isNewFormat = header.length >= 4 && header[1] === 'base';
+      for (const line of lines.slice(1)) {
+        const cols = line.split(',');
+        if (isNewFormat) {
+          const [d, b, q, r] = cols;
+          if (d && r) rates.push({ date: d.trim(), base: b.trim(), quote: q.trim(), rate: parseFloat(r).toFixed(4) });
+        } else {
+          // Old format: migrate to EUR/TND
+          const [d, r] = cols;
+          if (d && r) rates.push({ date: d.trim(), base: 'EUR', quote: 'TND', rate: parseFloat(r).toFixed(4) });
+        }
       }
     }
-    console.log(`Found ${Object.keys(existingRates).length} existing rates in CSV\n`);
+    console.log(`Found ${rates.length} existing rates in CSV\n`);
   }
 
-  const dates = getMonthDates(startDate, endDate);
   console.log(`Date range: ${startDate} to ${endDate}\n`);
 
-  const rates = [];
   let successCount = 0;
   let failCount = 0;
-
-  // Add existing rates first
-  for (const [dateKey, rate] of Object.entries(existingRates)) {
-    // Store existing daily rates
-    rates.push({ date: dateKey, rate: rate.toFixed(4) });
-  }
 
   // Fetch all rates (batch request via frankfurter.dev)
   console.log('⏳ Fetching all daily rates from API...\n');
   
   try {
-    const allRates = await fetchRates(startDate, endDate);
+    const allRates = await fetchRates(startDate, endDate, baseCurrency, quoteCurrency);
     
     // Process the batch response
     // Format (array): [{"date":"2025-04-01", "rate": 3.35}, ...]
     
     if (Array.isArray(allRates)) {
-      // Array format - API returns daily rates
       for (const item of allRates) {
         if (item.date && item.rate) {
-          const dateKey = item.date; // YYYY-MM-DD format
-          
-          // Update or add rate
-          const existing = rates.find(r => r.date === dateKey);
+          const existing = rates.find(r => r.date === item.date && r.base === baseCurrency && r.quote === quoteCurrency);
           if (existing) {
             existing.rate = parseFloat(item.rate).toFixed(4);
           } else {
-            rates.push({ date: dateKey, rate: parseFloat(item.rate).toFixed(4) });
+            rates.push({ date: item.date, base: baseCurrency, quote: quoteCurrency, rate: parseFloat(item.rate).toFixed(4) });
           }
           successCount++;
         }
       }
     } else {
-      // Object format - shouldn't happen with current API, but handle it
-      for (const [dateStr, tndRate] of Object.entries(allRates)) {
-        const date = dateStr; // YYYY-MM-DD format
-        const dateKey = date;
-        
-        if (tndRate) {
-          // Update or add rate
-          const existing = rates.find(r => r.date === dateKey);
+      for (const [dateStr, val] of Object.entries(allRates)) {
+        const rateVal = typeof val === 'object' ? val[quoteCurrency] : val;
+        if (rateVal) {
+          const existing = rates.find(r => r.date === dateStr && r.base === baseCurrency && r.quote === quoteCurrency);
           if (existing) {
-            existing.rate = parseFloat(tndRate).toFixed(4);
+            existing.rate = parseFloat(rateVal).toFixed(4);
           } else {
-            rates.push({ date: date, rate: parseFloat(tndRate).toFixed(4) });
+            rates.push({ date: dateStr, base: baseCurrency, quote: quoteCurrency, rate: parseFloat(rateVal).toFixed(4) });
           }
           successCount++;
         }
@@ -280,11 +303,11 @@ Note:
     process.exit(1);
   }
 
-  // Sort by date
-  rates.sort((a, b) => a.date.localeCompare(b.date));
+  // Sort by base, quote, then date
+  rates.sort((a, b) => a.base.localeCompare(b.base) || a.quote.localeCompare(b.quote) || a.date.localeCompare(b.date));
 
-  // Write CSV
-  const csv = 'date,rate\n' + rates.map(r => `${r.date},${r.rate}`).join('\n');
+  // Write CSV with new format: date,base,quote,rate
+  const csv = 'date,base,quote,rate\n' + rates.map(r => `${r.date},${r.base},${r.quote},${r.rate}`).join('\n');
   fs.writeFileSync(csvPath, csv, 'utf-8');
 
   console.log('\n' + '='.repeat(60));
