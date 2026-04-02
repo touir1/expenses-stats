@@ -4,101 +4,55 @@ const { normalizeStr, countTokenMatches } = require('../utils/text');
 const { matchesFilter } = require('../utils/filtering');
 const { parseCSVLine } = require('../utils/csv');
 const { readCSVLines, writeCSVRaw, loadCategories, loadCategoryPatterns, fileExists } = require('../utils/data');
+const { parseArgs } = require('../utils/cli-args');
+const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
+const { logWarning, logError, logSuccess, logInfo } = require('../utils/console-output');
 
-const args = process.argv.slice(2);
+// Parse command-line arguments
+const optionDefs = [
+  { flag: '--input-file', param: true, default: null },
+  { flag: '--output-file', param: true, default: null },
+  { flag: '--categories', param: true, default: null },
+  { flag: '--categories-file', param: true, default: null },
+  { flag: '--category-patterns-file', param: true, default: null },
+  { flag: '--category-col', param: true, default: 'category' },
+  { flag: '--default', param: true, default: 'other' },
+  { flag: '--separator', param: true, default: '/' }
+];
 
-function showHelp() {
+const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
+
+if (showHelp) {
   console.log(`
 Usage: node label.js [options]
 
 Options:
-  --input-file <path>         Input CSV file (default: ../../data/processed/depenses.csv)
-  --output-file <path>        Output CSV file (default: ../../data/processed/depenses-labeled.csv)
+  --input-file <path>         Input CSV file (default: data/processed/depenses.csv)
+  --output-file <path>        Output CSV file (default: data/processed/depenses-labeled.csv)
   --categories <json>         Categories definition as inline JSON
-  --categories-file <path>    Path to JSON file defining categories (default: ../../config/categories.json)
-  --category-patterns-file <path> Path to JSON file with category patterns (default: ../../config/category-patterns.json)
+  --categories-file <path>    Path to JSON file defining categories (default: config/categories.json)
+  --category-patterns-file <path> Path to JSON file with category patterns (default: config/category-patterns.json)
   --category-col <name>       Name of the added column (default: category)
   --default <label>           Default label when no category matches (default: "other")
   -h, --help                 Show this help message
 
-Categories File Format:
-  {
-    "categories": [
-      {
-        "name": "fuel",
-        "filters": { "description": { "regex": "escence|essence" } }
-      },
-      {
-        "name": "mechanic",
-        "filters": { "description": { "contains": "mecanicien" } }
-      }
-    ]
-  }
-
-Category Patterns File Format:
-  {
-    "forced": [
-      {
-        "description": "abderrahmen sallem",
-        "category": "false-positive/lending"
-      }
-    ]
-  }
-
-Notes:
-  - Categories are evaluated in order; first match wins
-  - Forced categories are checked BEFORE automatic detection
-  - Multiple filters within a category are ANDed together
-  - Supports same operators as filter.js
-
-Example:
-  node label.js --categories-file config/categories.json --category-patterns-file config/category-patterns.json
+Examples:
+  node label.js --categories-file config/categories.json
+  node label.js --help
 `);
   process.exit(0);
 }
 
-if (args.includes('-h') || args.includes('--help')) {
-  showHelp();
-}
-
-let inputFile = null;
-let outputFile = null;
-let categoriesJson = null;
-let categoriesFile = null;
-let categoryPatternsFile = null;
-let categoryColName = 'category';
-let defaultLabel = 'other';
-let separator = '/';
-
-for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--input-file' && args[i + 1]) {
-    inputFile = args[i + 1]; i++;
-  } else if (args[i] === '--output-file' && args[i + 1]) {
-    outputFile = args[i + 1]; i++;
-  } else if (args[i] === '--categories' && args[i + 1]) {
-    categoriesJson = args[i + 1]; i++;
-  } else if (args[i] === '--categories-file' && args[i + 1]) {
-    categoriesFile = args[i + 1]; i++;
-  } else if (args[i] === '--category-patterns-file' && args[i + 1]) {
-    categoryPatternsFile = args[i + 1]; i++;
-  } else if (args[i] === '--category-col' && args[i + 1]) {
-    categoryColName = args[i + 1]; i++;
-  } else if (args[i] === '--default' && args[i + 1]) {
-    defaultLabel = args[i + 1]; i++;
-  } else if (args[i] === '--separator' && args[i + 1]) {
-    separator = args[i + 1]; i++;
-  }
-}
-
-const baseDir = path.join(__dirname, '..', '..');
-if (!inputFile) inputFile = path.join(baseDir, 'data', 'processed', 'depenses.csv');
-if (!outputFile) outputFile = path.join(baseDir, 'data', 'processed', 'depenses-labeled.csv');
-if (!categoriesFile && !categoriesJson) categoriesFile = path.join(baseDir, 'config', 'categories.json');
-if (!categoryPatternsFile) categoryPatternsFile = path.join(baseDir, 'config', 'category-patterns.json');
-
-if (!path.isAbsolute(inputFile)) inputFile = path.join(process.cwd(), inputFile);
-if (!path.isAbsolute(outputFile)) outputFile = path.join(process.cwd(), outputFile);
-if (!path.isAbsolute(categoryPatternsFile)) categoryPatternsFile = path.join(process.cwd(), categoryPatternsFile);
+// Resolve paths
+const defaults = getDefaultPaths();
+const inputFile = resolvePath(parsedArgs['input-file'], defaults.inputFile);
+const outputFile = resolvePath(parsedArgs['output-file'], defaults.inputFile.replace('.csv', '-labeled.csv'));
+const categoriesFile = parsedArgs['categories-file'] ? resolvePath(parsedArgs['categories-file']) : defaults.categoriesFile;
+const categoryPatternsFile = resolvePath(parsedArgs['category-patterns-file'], defaults.categoryPatternsFile);
+const categoryColName = parsedArgs['category-col'] || 'category';
+const defaultLabel = parsedArgs['default'] || 'other';
+const separator = parsedArgs['separator'] || '/';
+const categoriesJson = parsedArgs['categories'] || null;
 
 // Load category patterns
 let categoryPatterns = [];
@@ -106,7 +60,7 @@ if (categoryPatternsFile && fileExists(categoryPatternsFile)) {
   try {
     categoryPatterns = loadCategoryPatterns(categoryPatternsFile);
   } catch (e) {
-    console.warn('Warning: Could not read/parse category-patterns-file:', e.message);
+    logWarning('Could not read/parse category-patterns-file', e.message);
   }
 }
 

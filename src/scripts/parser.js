@@ -1,17 +1,24 @@
 const fs = require('fs');
 const path = require('path');
+const { parseArgs } = require('../utils/cli-args');
+const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
+const { logSuccess, logError } = require('../utils/console-output');
 
 // Parse command-line arguments
-const args = process.argv.slice(2);
+const optionDefs = [
+  { flag: '--input-file', param: true, default: null },
+  { flag: '--output-file', param: true, default: null }
+];
 
-// Help function
-function showHelp() {
+const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
+
+if (showHelp) {
   console.log(`
 Usage: node parser.js [options]
 
 Options:
-  --input-file <path>   Input text file containing expenses (default: ../../data/raw/depenses.txt)
-  --output-file <path>  Output CSV file path (default: ../../data/processed/depenses.csv)
+  --input-file <path>   Input text file containing expenses (default: data/raw/depenses.txt)
+  --output-file <path>  Output CSV file path (default: data/processed/depenses.csv)
   -h, --help           Show this help message
 
 Example:
@@ -21,40 +28,10 @@ Example:
   process.exit(0);
 }
 
-// Check for help flag
-if (args.includes('-h') || args.includes('--help')) {
-  showHelp();
-}
-
-let inputFile = null;
-let outputFile = null;
-
-for (let i = 0; i < args.length; i++) {
-  if (args[i] === '--input-file' && args[i + 1]) {
-    inputFile = args[i + 1];
-    i++;
-  } else if (args[i] === '--output-file' && args[i + 1]) {
-    outputFile = args[i + 1];
-    i++;
-  }
-}
-
-// Use defaults if not provided
-const baseDir = path.join(__dirname, '..', '..');
-if (!inputFile) {
-  inputFile = path.join(baseDir, 'data', 'raw', 'depenses.txt');
-}
-if (!outputFile) {
-  outputFile = path.join(baseDir, 'data', 'processed', 'depenses.csv');
-}
-
-// Make paths absolute if relative
-if (!path.isAbsolute(inputFile)) {
-  inputFile = path.join(process.cwd(), inputFile);
-}
-if (!path.isAbsolute(outputFile)) {
-  outputFile = path.join(process.cwd(), outputFile);
-}
+// Use defaults from path resolver
+const defaults = getDefaultPaths();
+const inputFile = resolvePath(parsedArgs['input-file'], defaults.rawFile);
+const outputFile = resolvePath(parsedArgs['output-file'], defaults.inputFile);
 
 const content = fs.readFileSync(inputFile, 'utf-8');
 const lines = content.split('\n');
@@ -123,5 +100,5 @@ for (const expense of expenses) {
 
 // Write the CSV file
 fs.writeFileSync(outputFile, csv, 'utf-8');
-console.log(`✓ CSV file created: ${outputFile}`);
-console.log(`✓ Total expenses: ${expenses.length}`);
+logSuccess('CSV file created', outputFile);
+logSuccess('Total expenses', `${expenses.length} rows`);
