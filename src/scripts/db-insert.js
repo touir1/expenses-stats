@@ -1,7 +1,8 @@
 const path = require('path');
 const { readCSV, loadCategories, loadCategoryPatterns, fileExists, ensureDir } = require('../utils/data');
 const { openDatabase, initializeDatabase, loadCategoriesIntoDb, loadCategoryPatternsIntoDb,
-        loadConversionRatesIntoDb, getCategoryIdByLabel, getExpenseCount, insertExpense, getRowCount } = require('../utils/db');
+        loadConversionRatesIntoDb, getCategoryIdByLabel, getExpenseCount, insertExpense, insertExpensesBatch,
+        getRowCount, getAllCategoriesAsMap, getAllExpensesAsMap, hashExpense } = require('../utils/db');
 
 const args = process.argv.slice(2);
 
@@ -135,9 +136,11 @@ async function main() {
     console.log(`✓ Read ${csvRows.length} rows from CSV`);
 
     // Group rows by (date, category, amount) to check for duplicates
+    // Normalize amount to number for consistent key matching with database
     const rowGroups = {};
     for (const row of csvRows) {
-      const key = `${row.date}|${row.category}|${row.amount}`;
+      const normalizedAmount = parseFloat(row.amount);
+      const key = `${row.date}|${row.category}|${normalizedAmount}`;
       if (!rowGroups[key]) rowGroups[key] = [];
       rowGroups[key].push(row);
     }
@@ -147,42 +150,70 @@ async function main() {
     let warningCount = 0;
     const insertedByCategory = {};
 
-    console.log(`\nProcessing ${Object.keys(rowGroups).length} unique (date, category, amount) combinations...\n`);
+    console.log(`\nProcessing ${Object.keys(rowGroups).length} unique (date, category, amount) combinations...`);
+    console.log('Pre-loading categories and existing expenses for optimization...\n');
 
-    // Process each group
+    // Pre-load all categories into memory (1 query instead of per-group lookups)
+    const categoryMap = await getAllCategoriesAsMap(db);
+    console.log(`✓ Loaded ${Object.keys(categoryMap).length} categories into memory`);
+
+    // Pre-fetch all existing expenses for deduplication (1 query instead of per-group queries)
+    const expenseMap = await getAllExpensesAsMap(db);
+    console.log(`✓ Pre-fetched ${Object.keys(expenseMap).length} existing dedup keys from database\n`);
+
+    // Collect all rows to insert (batch them)
+    const rowsToInsert = [];
+    let processedGroups = 0;
+
+    // Process each group to determine what needs inserting
     for (const [key, groupRows] of Object.entries(rowGroups)) {
       const [date, categoryLabel, amount] = key.split('|');
       const csvCount = groupRows.length;
+      const categoryId = categoryMap[categoryLabel];
 
-      const categoryId = await getCategoryIdByLabel(db, categoryLabel);
       if (!categoryId) {
         console.warn(`  ⚠ Category not found: ${categoryLabel}`);
         warningCount++;
         continue;
       }
 
-      const dbCount = await getExpenseCount(db, date, categoryId, amount);
+      // Use hash for dedup lookup
+      const hash = hashExpense(date, categoryId, parseFloat(amount));
+      const dbCount = expenseMap[hash] || 0;
 
       if (dbCount === csvCount) {
         skipCount += csvCount;
       } else if (csvCount > dbCount) {
-        const rowsToInsert = csvCount - dbCount;
-        for (let i = 0; i < rowsToInsert; i++) {
-          try {
-            await insertExpense(db, groupRows[i], categoryId);
-            insertCount++;
-            insertedByCategory[categoryLabel] = (insertedByCategory[categoryLabel] || 0) + 1;
-          } catch (err) {
-            console.error(`  ✗ Error inserting row: ${err.message}`);
-          }
+        const rowsNeeded = csvCount - dbCount;
+        for (let i = 0; i < rowsNeeded; i++) {
+          rowsToInsert.push({
+            amount: groupRows[i].amount,
+            currency_symbol: groupRows[i].currency_symbol,
+            currency_code: groupRows[i].currency_code,
+            date: groupRows[i].date,
+            description: groupRows[i].description,
+            category_id: categoryId
+          });
+          insertedByCategory[categoryLabel] = (insertedByCategory[categoryLabel] || 0) + 1;
         }
       } else {
         console.warn(`  ⚠ WARNING: Database has ${dbCount} rows vs CSV has ${csvCount} for ${date}, ${categoryLabel}, ${amount}`);
         warningCount++;
       }
+      processedGroups++;
+      if (processedGroups % 500 === 0) {
+        console.log(`  ... processed ${processedGroups}/${Object.keys(rowGroups).length} groups`);
+      }
     }
 
-    console.log(`\n✓ Insert complete:`);
+    // Batch insert all collected rows in a single transaction
+    if (rowsToInsert.length > 0) {
+      console.log(`\nBatch-inserting ${rowsToInsert.length} rows in a single transaction...`);
+      insertCount = await insertExpensesBatch(db, rowsToInsert);
+      console.log(`✓ Batch insert complete: ${insertCount} rows inserted`);
+    }
+
+    console.log(`\n✓ Processing complete:`);
     console.log(`  - Inserted: ${insertCount} rows`);
     console.log(`  - Skipped (already exists): ${skipCount} rows`);
     console.log(`  - Warnings (db > csv): ${warningCount} combinations`);

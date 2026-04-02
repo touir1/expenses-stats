@@ -1,4 +1,11 @@
 const sqlite3 = require('sqlite3').verbose();
+const crypto = require('crypto');
+
+// Generate a hash for expense deduplication (date + category_id + amount)
+function hashExpense(date, categoryId, amount) {
+  const str = `${date}|${categoryId}|${amount}`;
+  return crypto.createHash('sha256').update(str).digest('hex').slice(0, 16);
+}
 
 // Open a SQLite database connection
 function openDatabase(databaseFile) {
@@ -69,14 +76,17 @@ function initializeDatabase(db, { dropAll = false } = {}) {
           date TEXT NOT NULL,
           description TEXT NOT NULL,
           category_id INTEGER,
+          hash TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (category_id) REFERENCES categories(id)
         )
       `, (err) => { if (err) reject(err); });
 
-      // Composite index for the deduplication COUNT query (date + category_id + amount)
-      db.run(`CREATE INDEX IF NOT EXISTS idx_expenses_dedup ON expenses (date, category_id, amount)`
+      // Index on hash for fast dedup lookups
+      db.run(`CREATE INDEX IF NOT EXISTS idx_expenses_hash ON expenses (hash)`
         , (err) => { if (err) reject(err); });
+
+
 
       // Index for category-based grouping and reporting
       db.run(`CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses (category_id)`
@@ -245,6 +255,60 @@ function insertExpense(db, row, categoryId) {
   });
 }
 
+// Bulk insert expenses in a single transaction using a prepared statement.
+// Much faster than sequential individual inserts.
+// rows: array of { amount, currency_symbol, currency_code, date, description, category_id }
+function insertExpensesBatch(db, rows) {
+  return new Promise((resolve, reject) => {
+    if (rows.length === 0) { resolve(0); return; }
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      const stmt = db.prepare(
+        'INSERT INTO expenses (amount, currency_symbol, currency_code, date, description, category_id, hash) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      );
+      for (const r of rows) {
+        const hash = hashExpense(r.date, r.category_id, parseFloat(r.amount));
+        stmt.run([parseFloat(r.amount), r.currency_symbol, r.currency_code, r.date, r.description, r.category_id, hash]);
+      }
+      stmt.finalize();
+      db.run('COMMIT', (err) => {
+        if (err) reject(err);
+        else resolve(rows.length);
+      });
+    });
+  });
+}
+
+// Load all categories (label → id mapping) for faster lookups.
+function getAllCategoriesAsMap(db) {
+  return new Promise((resolve, reject) => {
+    db.all('SELECT id, label FROM categories', (err, rows) => {
+      if (err) { reject(err); return; }
+      const map = {};
+      (rows || []).forEach(r => { map[r.label] = r.id; });
+      resolve(map);
+    });
+  });
+}
+
+// Pre-fetch all existing expense hashes for deduplication.
+// Returns map: hash -> count
+function getAllExpensesAsMap(db) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      'SELECT hash, COUNT(*) as count FROM expenses WHERE hash IS NOT NULL GROUP BY hash',
+      (err, rows) => {
+        if (err) { reject(err); return; }
+        const map = {};
+        (rows || []).forEach(r => {
+          map[r.hash] = r.count;
+        });
+        resolve(map);
+      }
+    );
+  });
+}
+
 // Count rows in a table
 function getRowCount(db, table) {
   return new Promise((resolve, reject) => {
@@ -405,6 +469,7 @@ module.exports = {
   getCategoryIdByLabel,
   getExpenseCount,
   insertExpense,
+  insertExpensesBatch,
   getRowCount,
   getFilterTokens,
   addFilterToken,
@@ -414,4 +479,7 @@ module.exports = {
   getConversionRateFromDb,
   loadCategoryPatternsIntoDb,
   getCategoryPatternsFromDb,
+  getAllCategoriesAsMap,
+  getAllExpensesAsMap,
+  hashExpense
 };
