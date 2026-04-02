@@ -1,5 +1,30 @@
 const fs = require('fs');
 
+// Parse a CSV line respecting quoted fields
+function parseCSVLine(line) {
+  const fields = [];
+  let i = 0;
+  while (i < line.length) {
+    if (line[i] === '"') {
+      let field = '';
+      i++;
+      while (i < line.length) {
+        if (line[i] === '"' && line[i + 1] === '"') { field += '"'; i += 2; }
+        else if (line[i] === '"') { i++; break; }
+        else { field += line[i++]; }
+      }
+      fields.push(field);
+      if (line[i] === ',') i++;
+    } else {
+      const end = line.indexOf(',', i);
+      if (end === -1) { fields.push(line.slice(i)); break; }
+      fields.push(line.slice(i, end));
+      i = end + 1;
+    }
+  }
+  return fields;
+}
+
 // Read CSV
 const csv = fs.readFileSync('data/processed/depenses-labeled.csv', 'utf-8');
 const lines = csv.split('\n').slice(1);
@@ -7,14 +32,13 @@ const lines = csv.split('\n').slice(1);
 const others = [];
 
 lines.forEach(line => {
-  if (line.endsWith(',other')) {
-    const parts = line.split(',');
-    if (parts.length >= 5) {
-      const amount = parts[0];
-      const currency = parts[1];
-      const desc = parts.slice(4, -1).join(',').trim().replace(/^"|"$/g, '');
-      others.push({ desc, amount, currency });
-    }
+  if (!line.trim()) return;
+  const parts = parseCSVLine(line);
+  if (parts.length >= 6 && parts[parts.length - 1].trim() === 'other') {
+    const amount = parts[0].trim();
+    const currency = parts[1].trim();
+    const desc = parts[4].trim();
+    others.push({ desc, amount, currency });
   }
 });
 

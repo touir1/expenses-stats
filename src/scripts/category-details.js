@@ -3,6 +3,31 @@
 const fs = require('fs');
 const path = require('path');
 
+// Parse a CSV line respecting quoted fields
+function parseCSVLine(line) {
+  const fields = [];
+  let i = 0;
+  while (i < line.length) {
+    if (line[i] === '"') {
+      let field = '';
+      i++;
+      while (i < line.length) {
+        if (line[i] === '"' && line[i + 1] === '"') { field += '"'; i += 2; }
+        else if (line[i] === '"') { i++; break; }
+        else { field += line[i++]; }
+      }
+      fields.push(field);
+      if (line[i] === ',') i++;
+    } else {
+      const end = line.indexOf(',', i);
+      if (end === -1) { fields.push(line.slice(i)); break; }
+      fields.push(line.slice(i, end));
+      i = end + 1;
+    }
+  }
+  return fields;
+}
+
 function normalizeStr(s) {
   return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
@@ -134,7 +159,7 @@ Output:
     }
 
     // Parse header
-    const header = lines[0].split(',');
+    const header = parseCSVLine(lines[0]);
     const columnMap = {};
     header.forEach((col, idx) => {
       columnMap[col] = idx;
@@ -153,7 +178,7 @@ Output:
     }
 
     for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(',');
+      const cols = parseCSVLine(lines[i]);
       const catValue = cols[categoryCol]?.trim() || '';
 
       // Parse category/subcategory from value

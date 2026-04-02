@@ -177,6 +177,31 @@ function dateToComparable(dateStr) {
 }
 
 // Strip accents and lowercase for accent-insensitive matching
+// Parse a CSV line respecting quoted fields
+function parseCSVLine(line) {
+  const fields = [];
+  let i = 0;
+  while (i < line.length) {
+    if (line[i] === '"') {
+      let field = '';
+      i++;
+      while (i < line.length) {
+        if (line[i] === '"' && line[i + 1] === '"') { field += '"'; i += 2; }
+        else if (line[i] === '"') { i++; break; }
+        else { field += line[i++]; }
+      }
+      fields.push(field);
+      if (line[i] === ',') i++;
+    } else {
+      const end = line.indexOf(',', i);
+      if (end === -1) { fields.push(line.slice(i)); break; }
+      fields.push(line.slice(i, end));
+      i = end + 1;
+    }
+  }
+  return fields;
+}
+
 function normalizeStr(s) {
   return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
@@ -299,7 +324,7 @@ try {
   }
 
   // Parse header
-  const headers = lines[0].split(',').map(h => h.trim());
+  const headers = parseCSVLine(lines[0]).map(h => h.trim());
   const columnMap = {};
   headers.forEach((header, idx) => {
     columnMap[header] = idx;
@@ -311,7 +336,7 @@ try {
 
   for (let i = 1; i < lines.length; i++) {
     totalRows++;
-    const parts = lines[i].split(',');
+    const parts = parseCSVLine(lines[i]);
     
     if (matchesAllFilters(parts, columnMap)) {
       filteredRows.push(lines[i]);

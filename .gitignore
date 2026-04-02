@@ -40,3 +40,5 @@ yarn-error.log*
 # Build/dist
 dist/
 build/
+
+package-lock.json

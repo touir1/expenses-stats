@@ -104,7 +104,7 @@ if (lines.length < 2) {
 }
 
 // Parse header
-const headers = lines[0].split(',').map(h => h.trim());
+const headers = parseCSVLine(lines[0]).map(h => h.trim());
 const amountIdx = headers.indexOf('amount');
 const currencySymbolIdx = headers.indexOf('currency_symbol');
 const currencyCodeIdx = headers.indexOf('currency_code');
@@ -120,18 +120,11 @@ if (amountIdx === -1 || currencySymbolIdx === -1 || currencyCodeIdx === -1 || da
 // Parse data rows
 const expenses = [];
 for (let i = 1; i < lines.length; i++) {
-  const parts = lines[i].split(',');
+  const parts = parseCSVLine(lines[i]);
   if (parts.length < headers.length) continue;
-  
-  // description may contain commas; category is last column if present
-  let description, category;
-  if (categoryIdx !== -1) {
-    category = parts[parts.length - 1].trim();
-    description = parts.slice(descriptionIdx, parts.length - 1).join(',').trim().replace(/^"|"$/g, '');
-  } else {
-    description = parts.slice(descriptionIdx).join(',').trim().replace(/^"(.*)"$/, '$1');
-    category = null;
-  }
+
+  const description = descriptionIdx !== -1 ? parts[descriptionIdx].trim() : '';
+  const category = categoryIdx !== -1 ? parts[categoryIdx].trim() : null;
 
   expenses.push({
     amount: parseFloat(parts[amountIdx]),
@@ -144,6 +137,31 @@ for (let i = 1; i < lines.length; i++) {
 }
 
 // Helper function to get conversion rate for a date
+// Parse a CSV line respecting quoted fields
+function parseCSVLine(line) {
+  const fields = [];
+  let i = 0;
+  while (i < line.length) {
+    if (line[i] === '"') {
+      let field = '';
+      i++;
+      while (i < line.length) {
+        if (line[i] === '"' && line[i + 1] === '"') { field += '"'; i += 2; }
+        else if (line[i] === '"') { i++; break; }
+        else { field += line[i++]; }
+      }
+      fields.push(field);
+      if (line[i] === ',') i++;
+    } else {
+      const end = line.indexOf(',', i);
+      if (end === -1) { fields.push(line.slice(i)); break; }
+      fields.push(line.slice(i, end));
+      i = end + 1;
+    }
+  }
+  return fields;
+}
+
 function getConversionRate(dateStr) {
   // dateStr is DD/MM/YYYY
   const parts = dateStr.split('/');

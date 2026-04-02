@@ -28,7 +28,9 @@
     "category-details:help": "node src/scripts/category-details.js --help",
     "list:other": "node src/scripts/list_other.js",
     "update-rates": "node src/scripts/update-rates.js",
-    "update-rates:help": "node src/scripts/update-rates.js --help"
+    "update-rates:help": "node src/scripts/update-rates.js --help",
+    "db:insert": "node src/scripts/db-insert.js",
+    "db:insert:help": "node src/scripts/db-insert.js --help"
   },
   "keywords": [
     "expenses",
@@ -41,5 +43,8 @@
   "license": "MIT",
   "engines": {
     "node": ">=14.0.0"
+  },
+  "dependencies": {
+    "sqlite3": "^6.0.1"
   }
 }
