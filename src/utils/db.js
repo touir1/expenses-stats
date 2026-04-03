@@ -582,6 +582,62 @@ function getFiltersForCategory(db, categoryId) {
   });
 }
 
+// Fetch all expenses with their category label, optionally filtered by date range.
+// beginDate / endDate in DD/MM/YYYY format.
+// Returns array of { amount, currency_code, currency_symbol, date, description, category }.
+function getExpensesFromDb(db, { beginDate, endDate } = {}) {
+  return new Promise((resolve, reject) => {
+    const conditions = [];
+    const params = [];
+
+    if (beginDate) {
+      const [bd, bm, by] = beginDate.split('/');
+      conditions.push("(substr(e.date,7,4)||substr(e.date,4,2)||substr(e.date,1,2)) >= ?");
+      params.push(`${by}${bm}${bd}`);
+    }
+    if (endDate) {
+      const [ed, em, ey] = endDate.split('/');
+      conditions.push("(substr(e.date,7,4)||substr(e.date,4,2)||substr(e.date,1,2)) <= ?");
+      params.push(`${ey}${em}${ed}`);
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const sql = `
+      SELECT e.amount, e.currency_code, e.currency_symbol, e.date, e.description,
+             c.label AS category
+      FROM expenses e
+      LEFT JOIN categories c ON c.id = e.category_id
+      ${where}
+      ORDER BY e.date
+    `;
+
+    db.all(sql, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows || []);
+    });
+  });
+}
+
+// Load all conversion rates for a given pair into a { 'YYYY-MM-DD': rate } map.
+// Same format returned by loadConversionRates() from conversion-rates.js,
+// so getRateForDate() works with it directly.
+function getConversionRatesMapFromDb(db, base = 'EUR', quote = 'TND') {
+  return new Promise((resolve, reject) => {
+    db.all(
+      'SELECT date, rate FROM conversion_rates WHERE base = ? AND quote = ? ORDER BY date',
+      [base.toUpperCase(), quote.toUpperCase()],
+      (err, rows) => {
+        if (err) reject(err);
+        else {
+          const map = {};
+          (rows || []).forEach(r => { map[r.date] = r.rate; });
+          resolve(map);
+        }
+      }
+    );
+  });
+}
+
 module.exports = {
   openDatabase,
   initializeDatabase,
@@ -597,6 +653,7 @@ module.exports = {
   getFiltersForCategory,
   loadConversionRatesIntoDb,
   getConversionRateFromDb,
+  getConversionRatesMapFromDb,
   loadCategoryPatternsIntoDb,
   getCategoryPatternsFromDb,
   loadForcedCategorizationsIntoDb,
@@ -604,5 +661,6 @@ module.exports = {
   getAllForcedCategorizationsFromDb,
   getAllCategoriesAsMap,
   getAllExpensesAsMap,
+  getExpensesFromDb,
   hashExpense
 };

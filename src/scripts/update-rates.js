@@ -4,7 +4,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { parseArgs } = require('../utils/cli-args');
-const { getProjectRoot, resolvePath, getDefaultPaths } = require('../utils/path-resolver');
+const { getDefaultPaths } = require('../utils/path-resolver');
 const { logSuccess, logError, logWarning, logInfo } = require('../utils/console-output');
 
 /**
@@ -95,11 +95,12 @@ function getMonthDates(startDate, endDate) {
 async function main() {
   // Parse command-line arguments
   const optionDefs = [
-    { flag: '--start', param: true, default: null },
-    { flag: '--end', param: true, default: null },
-    { flag: '--base', param: true, default: 'EUR' },
-    { flag: '--quote', param: true, default: 'TND' },
-    { flag: '--auto', param: false }
+    { flag: '--start',    param: true,  default: null },
+    { flag: '--end',      param: true,  default: null },
+    { flag: '--base',     param: true,  default: 'EUR' },
+    { flag: '--quote',    param: true,  default: 'TND' },
+    { flag: '--auto',     param: false },
+    { flag: '--database', param: true,  default: null }
   ];
 
   const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
@@ -107,7 +108,8 @@ async function main() {
   let endDate = parsedArgs['end'];
   let baseCurrency = parsedArgs['base'].toUpperCase();
   let quoteCurrency = parsedArgs['quote'].toUpperCase();
-  const autoMode = parsedArgs['auto'];
+  const autoMode    = parsedArgs['auto'];
+  const databaseArg = parsedArgs['database'];
 
   if (showHelp) {
     console.log(`
@@ -150,7 +152,7 @@ Note:
   const todayStr = today.toISOString().split('T')[0];
   
   const defaults = getDefaultPaths();
-  const csvPath = resolvePath(null, defaults.configPath + '/conversion_rates.csv');
+  const csvPath = defaults.conversionRatesFile;
   
   // Auto mode: fetch from last date in CSV to today (for the specific pair)
   if (autoMode) {
@@ -209,7 +211,7 @@ Note:
   startDate = startDate || '2022-08-01';
   endDate = endDate || todayStr;
 
-  logSection(`Fetching ${baseCurrency}/${quoteCurrency} conversion rates (daily)`);
+  logInfo(`Fetching ${baseCurrency}/${quoteCurrency} conversion rates (daily)`);
   logInfo(`Start date:  ${startDate}`);
   logInfo(`End date:    ${endDate}`);
   logInfo(`Pair:        ${baseCurrency}/${quoteCurrency}`);
@@ -303,13 +305,25 @@ Note:
   console.log('\n' + '='.repeat(60));
   console.log(`✓ Updated ${csvPath}`);
   console.log(`  Total rates in file: ${rates.length}`);
-  if (successCount > 0) {
-    console.log(`  Successfully fetched: ${successCount} rates`);
-  }
-  if (failCount > 0) {
-    console.log(`  Failed: ${failCount} rates`);
-  }
+  if (successCount > 0) console.log(`  Successfully fetched: ${successCount} rates`);
+  if (failCount > 0)    console.log(`  Failed: ${failCount} rates`);
   console.log('='.repeat(60));
+
+  // Optionally sync all rates to the SQLite database
+  if (databaseArg && successCount > 0) {
+    const { openDatabase, initializeDatabase, loadConversionRatesIntoDb } = require('../utils/db');
+    const { ensureDir } = require('../utils/path-resolver');
+    ensureDir(path.dirname(databaseArg));
+    const db = await openDatabase(databaseArg);
+    try {
+      await initializeDatabase(db);
+      const dbRows = rates.map(r => ({ date: r.date, base: r.base, quote: r.quote, rate: parseFloat(r.rate) }));
+      await loadConversionRatesIntoDb(db, dbRows);
+      logSuccess(`Synced ${dbRows.length} rates to database`, databaseArg);
+    } finally {
+      db.close();
+    }
+  }
 }
 
 // Run main and handle errors

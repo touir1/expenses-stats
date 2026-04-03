@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
 const path = require('path');
 const { parseCSVLine } = require('../utils/csv');
 const { normalizeStr } = require('../utils/text');
@@ -8,20 +7,21 @@ const { loadConversionRates, convertToEUR } = require('../utils/conversion-rates
 const { readCSVLines, fileExists } = require('../utils/data');
 const { parseArgs } = require('../utils/cli-args');
 const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
-const { logError, logInfo, logSuccess } = require('../utils/console-output');
+const { logError, logInfo } = require('../utils/console-output');
 
 async function main() {
-  // Parse command-line arguments
   const optionDefs = [
-    { flag: '--category', param: true, default: null },
-    { flag: '--subcategory', param: true, default: null },
-    { flag: '--input-file', param: true, default: null }
+    { flag: '--category',     param: true,  default: null },
+    { flag: '--subcategory',  param: true,  default: null },
+    { flag: '--input-file',   param: true,  default: null },
+    { flag: '--use-database', param: false },
+    { flag: '--database',     param: true,  default: null }
   ];
 
   const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
-  const category = parsedArgs['category'];
+  const category    = parsedArgs['category'];
   const subcategory = parsedArgs['subcategory'];
-  let inputFile = parsedArgs['input-file'];
+  const useDatabase = parsedArgs['use-database'];
 
   if (showHelp || !category) {
     console.log(`
@@ -35,195 +35,177 @@ Options:
   --subcategory <name>     Subcategory name (optional)
                            Examples: mechanic, cafe, rent, train_bus, etc.
   --input-file <path>      Input CSV file (default: depenses-labeled.csv)
+  --use-database           Read from SQLite database instead of CSV
+  --database <path>        SQLite database file (default: data/database/depenses.db)
   -h, --help              Show this help message
 
 Examples:
   node category-details.js --category car
   node category-details.js --category car --subcategory mechanic
-  node category-details.js --category food --subcategory cafe
-  node category-details.js --category housing --subcategory rent
-
-Output:
-  - Detailed table of matching entries
-  - Summary statistics (count, total, average, min, max)
-  - Breakdown by currency
+  node category-details.js --category food --use-database
 `);
     process.exit(0);
   }
 
-  // Resolve file paths
   const defaults = getDefaultPaths();
-  inputFile = resolvePath(inputFile, defaults.labeledFile);
-  const conversionFile = resolvePath(null, defaults.configPath + '/conversion_rates.csv');
 
   try {
-    // Read CSV
-    if (!fileExists(inputFile)) {
-      logError(`File not found: ${inputFile}`);
-      process.exit(1);
-    }
+    // Build matching rows array from either CSV or DB
+    let matchingRows = []; // each item: { date, description, amount, currency, eurValue, subcat }
 
-    const { headers: header, lines, columnMap } = readCSVLines(inputFile);
+    if (useDatabase) {
+      // --- DATABASE MODE ---
+      const { openDatabase, getExpensesFromDb, getConversionRatesMapFromDb } = require('../utils/db');
+      const { getRateForDate } = require('../utils/conversion-rates');
+      const databaseFile = resolvePath(parsedArgs['database'], defaults.databaseFile);
 
-    if (lines.length < 2) {
-      logError('CSV file is empty or has no data rows');
-      process.exit(1);
-    }
+      const db = await openDatabase(databaseFile);
+      let rows, rates;
+      try {
+        rows  = await getExpensesFromDb(db);
+        rates = await getConversionRatesMapFromDb(db);
+      } finally {
+        db.close();
+      }
 
-    // Get conversion rates
-    const rates = loadConversionRates(conversionFile);
+      const normalizedCat = normalizeStr(category);
+      const normalizedSub = subcategory ? normalizeStr(subcategory) : '';
 
-    // Filter rows by category/subcategory
-    const matchingRows = [];
-    const categoryCol = columnMap['category'];
+      for (const r of rows) {
+        const catLabel = r.category || '';
+        const [catName, subName] = catLabel.split('/');
+        if (normalizeStr(catName) !== normalizedCat) continue;
+        if (subcategory && normalizeStr(subName || '') !== normalizedSub) continue;
 
-    if (categoryCol === undefined) {
-      logError('"category" column not found in CSV');
-      process.exit(1);
-    }
+        const rate = getRateForDate(r.date, rates);
+        const eurValue = r.currency_code === 'EUR' ? r.amount : r.amount / rate;
+        matchingRows.push({
+          date:        r.date,
+          description: r.description,
+          amount:      r.amount,
+          currency:    r.currency_code,
+          eurValue,
+          subcat:      subName || 'other'
+        });
+      }
+    } else {
+      // --- CSV MODE ---
+      const inputFile = resolvePath(parsedArgs['input-file'], defaults.inputFile);
+      if (!fileExists(inputFile)) {
+        logError(`File not found: ${inputFile}`);
+        process.exit(1);
+      }
 
-    for (let i = 1; i < lines.length; i++) {
-      const cols = parseCSVLine(lines[i]);
-      const catValue = cols[categoryCol]?.trim() || '';
+      const { lines, columnMap } = readCSVLines(inputFile);
+      if (lines.length < 2) {
+        logError('CSV file is empty or has no data rows');
+        process.exit(1);
+      }
 
-      // Parse category/subcategory from value
-      const [catName, subName] = catValue.split('/');
-      const normalizedCat = normalizeStr(catName);
-      const normalizedSub = subName ? normalizeStr(subName) : '';
-      const normalizedInputCat = normalizeStr(category);
-      const normalizedInputSub = subcategory ? normalizeStr(subcategory) : '';
+      const rates = loadConversionRates(defaults.conversionRatesFile);
+      const categoryCol = columnMap['category'];
+      if (categoryCol === undefined) {
+        logError('"category" column not found in CSV');
+        process.exit(1);
+      }
 
-      // Match category (required)
-      if (normalizedCat !== normalizedInputCat) continue;
+      const normalizedCat = normalizeStr(category);
+      const normalizedSub = subcategory ? normalizeStr(subcategory) : '';
 
-      // Match subcategory if specified
-      if (subcategory && normalizedSub !== normalizedInputSub) continue;
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCSVLine(lines[i]);
+        const catValue = cols[categoryCol]?.trim() || '';
+        const [catName, subName] = catValue.split('/');
+        if (normalizeStr(catName) !== normalizedCat) continue;
+        if (subcategory && normalizeStr(subName || '') !== normalizedSub) continue;
 
-      matchingRows.push(cols);
+        const amount   = parseFloat(cols[columnMap['amount']] || 0);
+        const currency = cols[columnMap['currency_code']]?.trim() || '';
+        const date     = cols[columnMap['date']]?.trim() || '';
+        const eurValue = convertToEUR(amount, currency, date, rates);
+        matchingRows.push({
+          date,
+          description: cols[columnMap['description']]?.trim() || '',
+          amount,
+          currency,
+          eurValue,
+          subcat: subName || 'other'
+        });
+      }
     }
 
     if (matchingRows.length === 0) {
       const searchStr = subcategory ? `${category}/${subcategory}` : category;
-      logWarning(`No entries found for: ${searchStr}`);
+      console.log(`No entries found for: ${searchStr}`);
       process.exit(0);
     }
 
-    // Display results
+    // --- Display ---
     const displayCategory = subcategory ? `${category}/${subcategory}` : category;
     console.log(`\n╔════════════════════════════════════════════════════════════════╗`);
     console.log(`║  EXPENSE DETAILS: ${displayCategory.toUpperCase().padEnd(42)} ║`);
     console.log(`╚════════════════════════════════════════════════════════════════╝\n`);
 
-    // Create table data
-    const tableRows = matchingRows.map((cols, idx) => {
-      const amount = parseFloat(cols[columnMap['amount']] || 0);
-      const currency = cols[columnMap['currency_code']]?.trim() || '';
-      const date = cols[columnMap['date']]?.trim() || '';
-      const description = cols[columnMap['description']]?.trim() || '';
-      const categoryValue = cols[columnMap['category']]?.trim() || '';
-      const [, subName] = categoryValue.split('/');
-      
-      const row = {
-        '#': idx + 1,
-        'Date': date,
-        'Description': description,
-        'Amount': amount.toFixed(2),
-        'Currency': currency,
-        'EUR Value': convertToEUR(amount, currency, date, rates).toFixed(2)
-      };
-
-      // Add subcategory column if no subcategory filter is applied
-      if (!subcategory) {
-        row['Subcategory'] = subName || 'other';
-      }
-
-      return row;
-    });
-
-    // Display table
-    logSection(`EXPENSE DETAILS: ${(subcategory ? `${category}/${subcategory}` : category).toUpperCase()}`);
-    logInfo('ENTRIES');
-    logInfo('');
-    
-    // Simple table formatting
-    let cols = ['#', 'Date'];
-    if (!subcategory) {
-      cols.push('Subcategory');
-    }
+    // Table columns
+    const cols = ['#', 'Date'];
+    if (!subcategory) cols.push('Subcategory');
     cols.push('Description', 'Amount', 'Currency', 'EUR Value');
-    
+
     const widths = {
-      '#': 3,
-      'Date': 12,
+      '#':           3,
+      'Date':        12,
       'Subcategory': 14,
-      'Description': 30,
-      'Amount': 10,
-      'Currency': 8,
-      'EUR Value': 10
+      'Description': subcategory ? 30 : 26,
+      'Amount':      10,
+      'Currency':    8,
+      'EUR Value':   10
     };
 
-    // Adjust description width if subcategory is shown
-    if (!subcategory) {
-      widths['Description'] = 26;
-    }
+    console.log(cols.map(c => c.padEnd(widths[c])).join(' '));
+    console.log('-'.repeat(cols.reduce((sum, c) => sum + widths[c] + 1, 0)));
 
-    // Header
-    console.log(cols.map(col => col.padEnd(widths[col])).join(' '));
-    console.log('-'.repeat(cols.reduce((sum, col) => sum + widths[col] + 1, 0)));
-
-    // Rows
-    for (const row of tableRows) {
-      const line = cols.map(col => {
-        let val = String(row[col]);
-        if (col === 'Description') {
-          val = val.length > widths[col] ? val.substring(0, widths[col] - 3) + '...' : val;
+    matchingRows.forEach((row, idx) => {
+      const line = cols.map(c => {
+        let val;
+        switch (c) {
+          case '#':           val = String(idx + 1); break;
+          case 'Date':        val = row.date; break;
+          case 'Subcategory': val = row.subcat; break;
+          case 'Description': {
+            val = row.description;
+            if (val.length > widths[c]) val = val.substring(0, widths[c] - 3) + '...';
+            break;
+          }
+          case 'Amount':      val = row.amount.toFixed(2); break;
+          case 'Currency':    val = row.currency; break;
+          case 'EUR Value':   val = row.eurValue.toFixed(2); break;
+          default:            val = '';
         }
-        return val.padEnd(widths[col]);
+        return val.padEnd(widths[c]);
       }).join(' ');
       console.log(line);
-    }
+    });
 
-    // Calculate statistics
+    // --- Statistics ---
     console.log('');
-    logSection('SUMMARY STATISTICS');
+    logInfo('SUMMARY STATISTICS');
 
-    const totalEntries = matchingRows.length;
-    
-    // Group by currency AND subcategory
-    const byCurrency = {};
+    const byCurrency   = {};
     const bySubcategory = {};
-    let totalEUR = 0;
-    let totalTND = 0;
-    let minAmount = Infinity;
-    let maxAmount = -Infinity;
-    let minEUR = Infinity;
-    let maxEUR = -Infinity;
-    let minTND = Infinity;
-    let maxTND = -Infinity;
+    let totalEUR = 0, totalTND = 0;
+    let minEUR = Infinity, maxEUR = -Infinity;
+    let minTND = Infinity, maxTND = -Infinity;
 
-    for (let i = 0; i < matchingRows.length; i++) {
-      const cols = matchingRows[i];
-      const amount = parseFloat(cols[columnMap['amount']] || 0);
-      const currency = cols[columnMap['currency_code']]?.trim() || '';
-      const categoryValue = cols[columnMap['category']]?.trim() || '';
-      const [, subName] = categoryValue.split('/');
-      const subcat = subName || 'other';
-      const date2 = cols[columnMap['date']]?.trim() || '';
-      const eurValue = convertToEUR(amount, currency, date2, rates);
+    for (const row of matchingRows) {
+      const { amount, currency, subcat } = row;
 
-      // By currency
-      if (!byCurrency[currency]) {
-        byCurrency[currency] = { count: 0, total: 0, entries: [] };
-      }
+      if (!byCurrency[currency]) byCurrency[currency] = { count: 0, total: 0, entries: [] };
       byCurrency[currency].count++;
       byCurrency[currency].total += amount;
       byCurrency[currency].entries.push(amount);
 
-      // By subcategory (if no subcategory filter)
       if (!subcategory) {
-        if (!bySubcategory[subcat]) {
-          bySubcategory[subcat] = { byCurrency: {} };
-        }
+        if (!bySubcategory[subcat]) bySubcategory[subcat] = { byCurrency: {} };
         if (!bySubcategory[subcat].byCurrency[currency]) {
           bySubcategory[subcat].byCurrency[currency] = { count: 0, total: 0, entries: [] };
         }
@@ -232,7 +214,6 @@ Output:
         bySubcategory[subcat].byCurrency[currency].entries.push(amount);
       }
 
-      // Track both EUR and TND totals/mins/maxes
       if (currency === 'EUR') {
         totalEUR += amount;
         minEUR = Math.min(minEUR, amount);
@@ -242,12 +223,9 @@ Output:
         minTND = Math.min(minTND, amount);
         maxTND = Math.max(maxTND, amount);
       }
-
-      minAmount = Math.min(minAmount, amount);
-      maxAmount = Math.max(maxAmount, amount);
     }
 
-    console.log(`  Total Entries: ${totalEntries}`);
+    console.log(`  Total Entries: ${matchingRows.length}`);
     if (totalEUR > 0) {
       console.log(`  EUR Total: €${totalEUR.toFixed(2)}`);
       console.log(`  (EUR) Average: €${(totalEUR / byCurrency['EUR'].count).toFixed(2)}`);
@@ -260,38 +238,22 @@ Output:
     }
     console.log('');
 
-    // Show subcategory stats if category-level view
     if (!subcategory && Object.keys(bySubcategory).length > 0) {
       console.log('📂 BY SUBCATEGORY:');
-      const sortedSubs = Object.entries(bySubcategory).sort((a, b) => a[0].localeCompare(b[0]));
-      for (const [subcat, data] of sortedSubs) {
-        console.log(`  ${subcat}:`);
-        
-        // Count total entries in this subcategory
-        let totalEntriesSub = 0;
-        for (const curr of Object.keys(data.byCurrency)) {
-          totalEntriesSub += data.byCurrency[curr].count;
-        }
-        console.log(`    Entries: ${totalEntriesSub}`);
-
-        // Display EUR stats if present
+      Object.entries(bySubcategory).sort((a, b) => a[0].localeCompare(b[0])).forEach(([sub, data]) => {
+        const totalEntries = Object.values(data.byCurrency).reduce((s, d) => s + d.count, 0);
+        console.log(`  ${sub}: ${totalEntries} entries`);
         if (data.byCurrency['EUR']) {
-          const eurData = data.byCurrency['EUR'];
-          const avg = eurData.total / eurData.count;
-          const min = Math.min(...eurData.entries);
-          const max = Math.max(...eurData.entries);
-          console.log(`    (EUR) Total: €${eurData.total.toFixed(2)}, Average: €${avg.toFixed(2)}, Range: €${min.toFixed(2)} - €${max.toFixed(2)}`);
+          const d = data.byCurrency['EUR'];
+          const avg = d.total / d.count;
+          console.log(`    (EUR) Total: €${d.total.toFixed(2)}, Average: €${avg.toFixed(2)}, Range: €${Math.min(...d.entries).toFixed(2)} - €${Math.max(...d.entries).toFixed(2)}`);
         }
-
-        // Display TND stats if present
         if (data.byCurrency['TND']) {
-          const tndData = data.byCurrency['TND'];
-          const avg = tndData.total / tndData.count;
-          const min = Math.min(...tndData.entries);
-          const max = Math.max(...tndData.entries);
-          console.log(`    (TND) Total: ${tndData.total.toFixed(2)}dt, Average: ${avg.toFixed(2)}dt, Range: ${min.toFixed(2)} - ${max.toFixed(2)}dt`);
+          const d = data.byCurrency['TND'];
+          const avg = d.total / d.count;
+          console.log(`    (TND) Total: ${d.total.toFixed(2)}dt, Average: ${avg.toFixed(2)}dt, Range: ${Math.min(...d.entries).toFixed(2)} - ${Math.max(...d.entries).toFixed(2)}dt`);
         }
-      }
+      });
       console.log('');
     }
 
@@ -300,13 +262,8 @@ Output:
       const avg = data.total / data.count;
       const min = Math.min(...data.entries);
       const max = Math.max(...data.entries);
-      console.log(`  ${curr}:`);
-      console.log(`    Entries: ${data.count}`);
-      console.log(`    Total: ${data.total.toFixed(2)}`);
-      console.log(`    Average: ${avg.toFixed(2)}`);
-      console.log(`    Range: ${min.toFixed(2)} - ${max.toFixed(2)}`);
+      console.log(`  ${curr}: ${data.count} entries | Total: ${data.total.toFixed(2)} | Average: ${avg.toFixed(2)} | Range: ${min.toFixed(2)} - ${max.toFixed(2)}`);
     }
-
     console.log('');
 
   } catch (err) {
