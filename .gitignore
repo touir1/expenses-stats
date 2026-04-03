@@ -7,6 +7,8 @@ output/
 
 # Configuration files
 config/forced-categories.json
+config/category-patterns.json
+config/conversion_rates.csv
 
 # Environment variables
 .env
