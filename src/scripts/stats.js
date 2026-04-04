@@ -246,7 +246,7 @@ async function main() {
 
     // By month (from date DD/MM/YYYY)
     const [, month, year] = exp.date.split('/');
-    const monthKey = `${year}-${month}`;
+    const monthKey = `${year}-${month.padStart(2, '0')}`;
     if (!stats.byMonth[monthKey]) {
       stats.byMonth[monthKey] = { count: 0, EUR: 0, TND: 0 };
     }

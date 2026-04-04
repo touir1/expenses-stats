@@ -31,6 +31,10 @@ function fetchRates(startDate, endDate, base, quote) {
       });
 
       res.on('end', () => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          reject(new Error(`API request failed with HTTP ${res.statusCode}: ${data.slice(0, 200)}`));
+          return;
+        }
         try {
           const json = JSON.parse(data);
           

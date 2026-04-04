@@ -2,10 +2,10 @@
 
 ## Bugs
 
-- [ ] **`csv.js` — infinite loop on unclosed quotes**: `parseCSVLine` while loop never breaks on malformed input like `"unclosed,value`
-- [ ] **`update-rates.js` — HTTP status never checked**: API 4xx/5xx responses are parsed as JSON and crash cryptically
-- [ ] **`pipeline-date-range.js` — date validation is format-only**: `32/13/2026` passes `validateDateFormat()` and causes silent downstream failures
-- [ ] **Inconsistent date padding across codebase**: `date-utils.js`, `db.js`, and `stats.js` each implement DD/MM/YYYY→ISO conversion differently; some missing `.padStart(2,'0')` causing mismatched rate lookups
+- [x] **`csv.js` — unclosed quotes silently misparse**: inner while exits on `i >= line.length` without finding closing quote, absorbing commas into the field and producing wrong column counts — now throws `Malformed CSV: unclosed quoted field`
+- [x] **`update-rates.js` — HTTP status never checked**: API 4xx/5xx responses were parsed as JSON and crashed cryptically — now rejects with HTTP status before parsing
+- [x] **`pipeline-date-range.js` — date validation is format-only**: `32/13/2026` passed `validateDateFormat()` — now uses `new Date()` round-trip to catch impossible calendar dates
+- [x] **Inconsistent date padding across codebase**: `toISODate` and `toComparableString` in `date-utils.js`, `getExpensesFromDb` params in `db.js`, and `monthKey` in `stats.js` were missing `.padStart(2,'0')` — all fixed
 
 ## Inconsistencies
 

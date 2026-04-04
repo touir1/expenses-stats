@@ -10,12 +10,14 @@ function parseCSVLine(line) {
   while (i < line.length) {
     if (line[i] === '"') {
       let field = '';
+      let closed = false;
       i++;
       while (i < line.length) {
         if (line[i] === '"' && line[i + 1] === '"') { field += '"'; i += 2; }
-        else if (line[i] === '"') { i++; break; }
+        else if (line[i] === '"') { i++; closed = true; break; }
         else { field += line[i++]; }
       }
+      if (!closed) throw new Error(`Malformed CSV: unclosed quoted field near: ${line.slice(0, 40)}`);
       fields.push(field);
       if (line[i] === ',') i++;
     } else {

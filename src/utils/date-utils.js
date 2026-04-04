@@ -6,7 +6,7 @@ function toISODate(ddmmyyyyStr) {
   const parts = ddmmyyyyStr.split('/');
   if (parts.length !== 3) return null;
   const [day, month, year] = parts;
-  return `${year}-${month}-${day}`;
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 
 // Convert YYYY-MM-DD to DD/MM/YYYY format
@@ -24,7 +24,7 @@ function toComparableString(ddmmyyyyStr) {
   const parts = ddmmyyyyStr.split('/');
   if (parts.length !== 3) return null;
   const [day, month, year] = parts;
-  return `${year}${month}${day}`;
+  return `${year}${month.padStart(2, '0')}${day.padStart(2, '0')}`;
 }
 
 // Parse DD/MM/YYYY and return { year, month, day }

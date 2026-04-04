@@ -593,12 +593,12 @@ function getExpensesFromDb(db, { beginDate, endDate } = {}) {
     if (beginDate) {
       const [bd, bm, by] = beginDate.split('/');
       conditions.push("(substr(e.date,7,4)||substr(e.date,4,2)||substr(e.date,1,2)) >= ?");
-      params.push(`${by}${bm}${bd}`);
+      params.push(`${by}${bm.padStart(2, '0')}${bd.padStart(2, '0')}`);
     }
     if (endDate) {
       const [ed, em, ey] = endDate.split('/');
       conditions.push("(substr(e.date,7,4)||substr(e.date,4,2)||substr(e.date,1,2)) <= ?");
-      params.push(`${ey}${em}${ed}`);
+      params.push(`${ey}${em.padStart(2, '0')}${ed.padStart(2, '0')}`);
     }
 
     const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
