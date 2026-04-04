@@ -108,8 +108,8 @@ Examples:
         [
           '--input-file', path.join(__dirname, '..', '..', 'data', 'processed', 'depenses.csv'),
           '--output-file', path.join(__dirname, '..', '..', 'data', 'processed', 'depenses-labeled.csv'),
-          '--categories-file', path.join(__dirname, '..', '..', 'config', 'categories.json'),
-          '--forced-categories-file', path.join(__dirname, '..', '..', 'config', 'forced-categories.json')
+          '--categories-file', path.join(__dirname, '..', '..', 'config', 'categories.config.json'),
+          '--forced-categories-file', path.join(__dirname, '..', '..', 'config', 'forced-categories.config.json')
         ],
         { description: 'Step 2: Labeling expenses with categories' }
       );
@@ -158,13 +158,13 @@ Examples:
 
       // Step 4: Apply additional named filter if specified
       if (applyFilter) {
-        const configPath = path.join(__dirname, '..', '..', 'config', 'filters-config.json');
+        const configPath = path.join(__dirname, '..', '..', 'config', 'filters.config.json');
         const filterConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
         if (!filterConfig.filters[applyFilter]) {
           throw new Error(`Unknown filter key: "${applyFilter}". Available: ${Object.keys(filterConfig.filters).join(', ')}`);
         }
         const filterDef  = filterConfig.filters[applyFilter];
-        const filterFile = path.join(__dirname, '..', '..', 'config', `filter-${applyFilter}.json`);
+        const filterFile = path.join(__dirname, '..', '..', 'config', 'filters', `filter-${applyFilter}.json`);
         fs.writeFileSync(filterFile, JSON.stringify(filterDef, null, 2), 'utf-8');
 
         const additionalFilteredOutput = path.join(__dirname, '..', '..', 'output', `depenses-${dateRangeSuffix}-${applyFilter}-filtered.csv`);
@@ -182,7 +182,7 @@ Examples:
         [
           '--input-file', inputForStats,
           '--output', 'both', '--output-file', statsOutputFile,
-          '--conversion-rates', path.join(__dirname, '..', '..', 'config', 'conversion_rates.csv')
+          '--conversion-rates', path.join(__dirname, '..', '..', 'data', 'processed', 'conversion-rates.csv')
         ],
         { description: applyFilter ? `Step 5: Generating statistics (date range + ${applyFilter} filter)` : 'Step 5: Generating statistics (date range filter)' }
       );

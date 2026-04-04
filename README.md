@@ -12,20 +12,22 @@ depenses_stats/
 │   ├── filter.js            # Filter CSV with GraphQL-style filters
 │   ├── stats.js             # Generate statistics
 │   ├── pipeline.js          # Main orchestration script
-│   └── list_other.js        # List uncategorized items
+│   └── list-other.js        # List uncategorized items
 ├── config/                  # Configuration files
-│   ├── categories.json      # Hierarchical category definitions (token-based)
-│   ├── conversion_rates.csv # EUR/TND monthly conversion rates
-│   └── filters-config.json  # Named filter definitions
+│   ├── categories.config.json       # Hierarchical category definitions (token-based)
+│   ├── filters.config.json          # Named filter definitions
+│   └── filters/                     # Individual filter definitions
 ├── data/                    # Data directories
 │   ├── raw/                # Input raw data
 │   │   └── depenses.txt
 │   └── processed/          # Processed data
 │       ├── depenses.csv
-│       └── depenses-labeled.csv
+│       ├── depenses-labeled.csv
+│       └── conversion-rates.csv     # EUR/TND conversion rates
 ├── output/                  # Pipeline output
 │   ├── depenses-stats.json
 │   └── depenses-*-filtered.csv (optional, per filter)
+├── docs/                   # Documentation
 ├── package.json            # NPM configuration
 └── README.md               # This file
 ```
@@ -80,7 +82,7 @@ npm run stats
 
 ## Named Filters
 
-Filters are defined in `config/filters-config.json` and can be referenced by key:
+Filters are defined in `config/filters.config.json` and can be referenced by key:
 
 | Key | Description |
 |-----|-------------|
@@ -94,7 +96,7 @@ Filters are defined in `config/filters-config.json` and can be referenced by key
 
 ### Adding Custom Filters
 
-Edit `config/filters-config.json`:
+Edit `config/filters.config.json`:
 
 ```json
 {
@@ -196,7 +198,7 @@ Options:
 
 ## Currency Conversion
 
-- Monthly conversion rates from `config/conversion_rates.csv`
+- Monthly conversion rates from `config/conversion-rates.csv`
 - Format: `YYYY-MM,rate`
 - Default fallback rate: 3.5 TND/EUR
 - Both EUR and TND totals calculated for each category/month
@@ -211,9 +213,9 @@ Options:
 - **pipeline.js**: Orchestrates the entire workflow
 
 ### Configuration
-- **categories.json**: Full expense category hierarchy with token-based matching
-- **conversion_rates.csv**: Monthly EUR/TND conversion rates
-- **filters-config.json**: Named filter definitions with descriptions
+- **categories.config.json**: Full expense category hierarchy with token-based matching
+- **conversion-rates.csv**: Monthly EUR/TND conversion rates
+- **filters.config.json**: Named filter definitions with descriptions
 
 ### Data
 - **data/raw/**: Input text files
@@ -241,7 +243,7 @@ npm run pipeline:quick
 Skips parsing, goes straight to labeling and stats
 
 ### Custom filter
-1. Add filter to `config/filters-config.json`
+1. Add filter to `config/filters.config.json`
 2. Run: `npm run pipeline -- --filter filter_key`
 
 ## Requirements

@@ -26,7 +26,7 @@
     "stats:help": "node src/scripts/stats.js --help",
     "category-details": "node src/scripts/category-details.js",
     "category-details:help": "node src/scripts/category-details.js --help",
-    "list:other": "node src/scripts/list_other.js",
+    "list:other": "node src/scripts/list-other.js",
     "update-rates": "node src/scripts/update-rates.js",
     "update-rates:help": "node src/scripts/update-rates.js --help",
     "db:insert": "node src/scripts/db-insert.js",

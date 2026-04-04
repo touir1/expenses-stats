@@ -32,13 +32,13 @@ Options:
   --input-file <path>        Input CSV file (default: data/processed/depenses-labeled.csv)
   --output <mode>            Output mode: 'console', 'file', or 'both' (default: console)
   --output-file <path>       Output JSON file path (default: output/depenses-stats.json)
-  --conversion-rates <path>  Conversion rates CSV file (default: config/conversion_rates.csv)
+  --conversion-rates <path>  Conversion rates CSV file (default: data/processed/conversion-rates.csv)
   --convert-to <currency>    Convert amounts to currency: EUR or TND
   --use-database             Read expenses and rates from the SQLite database
   --database <path>          SQLite database file (default: data/database/depenses.db)
   --begin-date <DD/MM/YYYY>  Filter expenses from this date (inclusive)
   --end-date <DD/MM/YYYY>    Filter expenses until this date (inclusive)
-  --filter <key>             Apply named filter from config/filters-config.json
+  --filter <key>             Apply named filter from config/filters.config.json
   -h, --help                Show this help message
 
 Examples:
@@ -164,7 +164,7 @@ async function main() {
 
   // Apply named filter (both modes)
   if (filterKey) {
-    const filterConfigPath = path.join(defaults.configDir, 'filters-config.json');
+    const filterConfigPath = path.join(defaults.configDir, 'filters.config.json');
     const filterConfig = readJSON(filterConfigPath);
     if (!filterConfig.filters || !filterConfig.filters[filterKey]) {
       logError(`Unknown filter key: "${filterKey}". Available: ${Object.keys(filterConfig.filters || {}).join(', ')}`);

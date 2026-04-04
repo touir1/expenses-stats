@@ -30,14 +30,14 @@ Options:
   --input-file <path>         Input CSV file (default: data/processed/depenses.csv)
   --output-file <path>        Output CSV file (default: data/processed/depenses-labeled.csv)
   --categories <json>         Categories definition as inline JSON
-  --categories-file <path>    Path to JSON file defining categories (default: config/categories.json)
-  --category-patterns-file <path> Path to JSON file with category patterns (default: config/category-patterns.json)
+  --categories-file <path>    Path to JSON file defining categories (default: config/categories.config.json)
+  --category-patterns-file <path> Path to JSON file with category patterns (default: config/category-patterns.config.json)
   --category-col <name>       Name of the added column (default: category)
   --default <label>           Default label when no category matches (default: "other")
   -h, --help                 Show this help message
 
 Examples:
-  node label.js --categories-file config/categories.json
+  node label.js --categories-file config/categories.config.json
   node label.js --help
 `);
   process.exit(0);

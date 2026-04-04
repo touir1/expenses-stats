@@ -10,7 +10,7 @@ const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
 
 if (showHelp) {
   console.log(`
-Usage: node list_other.js [options]
+Usage: node list-other.js [options]
 
 Options:
   --input-file <path>  Input labeled CSV file (default: data/processed/depenses-labeled.csv)

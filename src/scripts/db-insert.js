@@ -40,10 +40,10 @@ Usage: node db-insert.js [options]
 
 Options:
   --input-file <path>              Input labeled CSV file (default: data/processed/depenses-labeled.csv)
-  --categories-file <path>         Categories definition file (default: config/categories.json)
-  --category-patterns-file <path>  Category patterns file (default: config/category-patterns.json)
-  --forced-categories-file <path>  Forced categories file (default: config/forced-categories.json)
-  --conversion-rates-file <path>   Conversion rates CSV file (default: config/conversion_rates.csv)
+  --categories-file <path>         Categories definition file (default: config/categories.config.json)
+  --category-patterns-file <path>  Category patterns file (default: config/category-patterns.config.json)
+  --forced-categories-file <path>  Forced categories file (default: config/forced-categories.config.json)
+  --conversion-rates-file <path>   Conversion rates CSV file (default: data/processed/conversion-rates.csv)
   --database <path>                SQLite database file (default: data/database/depenses.db)
   --reset-database                 Delete all data and recreate the tables
   -h, --help                      Show this help message

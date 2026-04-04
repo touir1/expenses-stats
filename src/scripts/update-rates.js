@@ -115,7 +115,7 @@ async function main() {
     console.log(`
 Usage: node update-rates.js [options]
 
-Fetch currency conversion rates and update config/conversion_rates.csv
+Fetch currency conversion rates and update data/processed/conversion-rates.csv
 Uses frankfurter.dev API (FREE, no limits, no authentication required)
 Batch requests: fetches all daily rates for the entire date range in one API call
 

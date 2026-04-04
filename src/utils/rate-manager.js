@@ -21,14 +21,14 @@ function log(color, message) {
 async function ensureRatesUpdated(ratesPath = null) {
   try {
     if (!ratesPath) {
-      ratesPath = path.join(getProjectRoot(), 'config', 'conversion_rates.csv');
+      ratesPath = path.join(getProjectRoot(), 'data', 'processed', 'conversion-rates.csv');
     }
 
     const content = fs.readFileSync(ratesPath, 'utf-8');
     const lines = content.trim().split('\n');
     
     if (lines.length < 2) {
-      logWarning('conversion_rates.csv is empty or invalid');
+      logWarning('conversion-rates.csv is empty or invalid');
       return;
     }
 

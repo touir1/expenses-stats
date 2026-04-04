@@ -42,7 +42,7 @@ Pipeline Stages (--use-database mode):
 Options:
   --skip-parsing        Skip the parsing step (use existing CSV)
   --skip-labeling       Skip the labeling step (use existing labeled CSV)
-  --filter <key>        Apply named filter from config/filters-config.json
+  --filter <key>        Apply named filter from config/filters.config.json
                         Available: car, eur, tnd, high_value, low_value, food, transport
   --use-database        Load data into DB then generate stats from DB (no filter.js step)
   --database <path>     SQLite database file (default: data/database/depenses.db)
@@ -83,8 +83,8 @@ Examples:
         [
           '--input-file', path.join(__dirname, '..', '..', 'data', 'processed', 'depenses.csv'),
           '--output-file', path.join(__dirname, '..', '..', 'data', 'processed', 'depenses-labeled.csv'),
-          '--categories-file', path.join(__dirname, '..', '..', 'config', 'categories.json'),
-          '--forced-categories-file', path.join(__dirname, '..', '..', 'config', 'forced-categories.json')
+          '--categories-file', path.join(__dirname, '..', '..', 'config', 'categories.config.json'),
+          '--forced-categories-file', path.join(__dirname, '..', '..', 'config', 'forced-categories.config.json')
         ],
         { description: 'Step 2: Labeling expenses with categories' }
       );
@@ -123,13 +123,13 @@ Examples:
       let inputForStats = labeledCsv;
 
       if (filterKey) {
-        const configPath = path.join(__dirname, '..', '..', 'config', 'filters-config.json');
+        const configPath = path.join(__dirname, '..', '..', 'config', 'filters.config.json');
         const filterConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
         if (!filterConfig.filters[filterKey]) {
           throw new Error(`Unknown filter key: "${filterKey}". Available: ${Object.keys(filterConfig.filters).join(', ')}`);
         }
         const filterDef  = filterConfig.filters[filterKey];
-        const filterFile = path.join(__dirname, '..', '..', 'config', `filter-${filterKey}.json`);
+        const filterFile = path.join(__dirname, '..', '..', 'config', 'filters', `filter-${filterKey}.json`);
         fs.writeFileSync(filterFile, JSON.stringify(filterDef, null, 2), 'utf-8');
 
         await runCommand(
@@ -151,7 +151,7 @@ Examples:
           '--input-file', inputForStats,
           '--output', 'both',
           '--output-file', statsOutputFile,
-          '--conversion-rates', path.join(__dirname, '..', '..', 'config', 'conversion_rates.csv')
+          '--conversion-rates', path.join(__dirname, '..', '..', 'data', 'processed', 'conversion-rates.csv')
         ],
         { description: 'Step 4: Generating statistics' }
       );
