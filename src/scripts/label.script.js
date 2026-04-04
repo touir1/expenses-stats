@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { normalizeStr, countTokenMatches } = require('../utils/text.util');
+const { countTokenMatches } = require('../utils/text.util');
 const { matchesFilter } = require('../utils/filtering.util');
 const { parseCSVLine } = require('../utils/csv.util');
 const { readCSVLines, writeCSVRaw, loadCategories, loadCategoryPatterns, fileExists } = require('../utils/data.util');
@@ -94,56 +94,50 @@ if (categoryDefs.length === 0) {
 
 
 
-// Sum token-match scores across all token filters in a category definition
-function getCategoryScore(row, columnMap, filters) {
-  if (!filters) return 0;
+// Build a flat list of all leaf nodes from the category tree (computed once at startup)
+function buildLeafList(categories, parentPath) {
+  const leaves = [];
+  for (const catDef of categories) {
+    const currentPath = parentPath ? `${parentPath}${separator}${catDef.name}` : catDef.name;
+    if (catDef.subcategories && catDef.subcategories.length > 0) {
+      leaves.push(...buildLeafList(catDef.subcategories, currentPath));
+    } else {
+      leaves.push({ path: currentPath, filters: catDef.filters || {} });
+    }
+  }
+  return leaves;
+}
+
+// Score a row against a single leaf's filters (AND logic across filters, sum of token matches)
+// Returns 0 if any filter doesn't match
+function scoreLeaf(row, columnMap, filters) {
+  if (!filters || Object.keys(filters).length === 0) return 0;
   let score = 0;
   for (const [colName, condition] of Object.entries(filters)) {
-    if (colName in columnMap && typeof condition === 'object' && Array.isArray(condition.tokens)) {
-      score += countTokenMatches(row[columnMap[colName]].trim(), condition.tokens);
+    if (!(colName in columnMap)) return 0;
+    const value = row[columnMap[colName]].trim();
+    if (!matchesFilter(value, condition)) return 0;
+    if (typeof condition === 'object' && condition !== null && Array.isArray(condition.tokens)) {
+      score += countTokenMatches(value, condition.tokens);
+    } else {
+      score += 1;
     }
   }
   return score;
 }
 
-
-
-// Collect all tokens from subcategories (if category has no explicit filters)
-function collectSubcategoryTokens(catDef) {
-  if (!catDef.subcategories || catDef.subcategories.length === 0) {
-    return null;
-  }
-  const allTokens = new Set();
-  for (const sub of catDef.subcategories) {
-    if (sub.filters && sub.filters.description && Array.isArray(sub.filters.description.tokens)) {
-      sub.filters.description.tokens.forEach(t => allTokens.add(t));
+// Assign category by scoring all leaves globally and picking the highest score
+function assignCategory(row, columnMap, leaves) {
+  let bestPath = null;
+  let bestScore = 0;
+  for (const leaf of leaves) {
+    const score = scoreLeaf(row, columnMap, leaf.filters);
+    if (score > bestScore) {
+      bestScore = score;
+      bestPath = leaf.path;
     }
   }
-  return allTokens.size > 0 ? Array.from(allTokens) : null;
-}
-
-// Match a row against all filters in a category (AND logic)
-// If category has no explicit filters but has subcategories, use auto-generated filters from subcategories
-function matchesCategory(row, columnMap, catDef) {
-  let filters = catDef.filters || {};
-  
-  // If no explicit filters but has subcategories, auto-generate filter from subcategory tokens
-  if (Object.keys(filters).length === 0 && catDef.subcategories && catDef.subcategories.length > 0) {
-    const tokens = collectSubcategoryTokens(catDef);
-    if (tokens && tokens.length > 0) {
-      filters = { description: { tokens } };
-    }
-  }
-  
-  for (const [colName, condition] of Object.entries(filters)) {
-    if (!(colName in columnMap)) {
-      console.error(`Error: Column "${colName}" not found in CSV header`);
-      process.exit(1);
-    }
-    const value = row[columnMap[colName]].trim();
-    if (!matchesFilter(value, condition)) return false;
-  }
-  return true;
+  return bestPath;
 }
 
 // Check if row matches a forced category
@@ -173,35 +167,8 @@ function checkForcedCategory(row, columnMap, forcedList) {
   return bestMatch;
 }
 
-// Recursively assign hierarchical category label
-function assignCategory(row, columnMap, categories, parentPath) {
-  for (const catDef of categories) {
-    if (matchesCategory(row, columnMap, catDef)) {
-      const currentPath = parentPath ? `${parentPath}${separator}${catDef.name}` : catDef.name;
-      if (catDef.subcategories && catDef.subcategories.length > 0) {
-        // If any subcategory uses tokens, score all matching subs and pick the best
-        const usesTokens = catDef.subcategories.some(s =>
-          s.filters && Object.values(s.filters).some(f => f && typeof f === 'object' && Array.isArray(f.tokens))
-        );
-        if (usesTokens) {
-          let bestPath = null;
-          let bestScore = -1;
-          for (const sub of catDef.subcategories) {
-            if (!matchesCategory(row, columnMap, sub)) continue;
-            const score = getCategoryScore(row, columnMap, sub.filters);
-            if (score > bestScore) { bestScore = score; bestPath = `${currentPath}${separator}${sub.name}`; }
-          }
-          return bestPath || currentPath;
-        }
-        // First-match-wins for non-token subcategories
-        const subLabel = assignCategory(row, columnMap, catDef.subcategories, currentPath);
-        if (subLabel !== null) return subLabel;
-      }
-      return currentPath;
-    }
-  }
-  return null;
-}
+// Precompute flat leaf list once
+const leaves = buildLeafList(categoryDefs, '');
 
 // Read and process CSV
 try {
@@ -220,7 +187,7 @@ try {
     const parts = parseCSVLine(lines[i]);
     // Check category patterns first
     const patternLabel = checkForcedCategory(parts, columnMap, categoryPatterns);
-    const label = patternLabel || assignCategory(parts, columnMap, categoryDefs, '') || defaultLabel;
+    const label = patternLabel || assignCategory(parts, columnMap, leaves) || defaultLabel;
     tally[label] = (tally[label] || 0) + 1;
     outputLines.push(lines[i] + ',' + label);
   }
