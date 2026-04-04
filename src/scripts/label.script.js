@@ -1,12 +1,12 @@
 const fs = require('fs');
 const path = require('path');
-const { normalizeStr, countTokenMatches } = require('../utils/text');
-const { matchesFilter } = require('../utils/filtering');
-const { parseCSVLine } = require('../utils/csv');
-const { readCSVLines, writeCSVRaw, loadCategories, loadCategoryPatterns, fileExists } = require('../utils/data');
-const { parseArgs } = require('../utils/cli-args');
-const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
-const { logWarning, logError, logSuccess, logInfo } = require('../utils/console-output');
+const { normalizeStr, countTokenMatches } = require('../utils/text.util');
+const { matchesFilter } = require('../utils/filtering.util');
+const { parseCSVLine } = require('../utils/csv.util');
+const { readCSVLines, writeCSVRaw, loadCategories, loadCategoryPatterns, fileExists } = require('../utils/data.util');
+const { parseArgs } = require('../utils/cli-args.util');
+const { getDefaultPaths, resolvePath } = require('../utils/path-resolver.util');
+const { logWarning, logError, logSuccess, logInfo } = require('../utils/console-output.util');
 
 // Parse command-line arguments
 const optionDefs = [

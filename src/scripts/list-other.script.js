@@ -1,6 +1,6 @@
-const { readCSV } = require('../utils/data');
-const { parseArgs } = require('../utils/cli-args');
-const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
+const { readCSV } = require('../utils/data.util');
+const { parseArgs } = require('../utils/cli-args.util');
+const { getDefaultPaths, resolvePath } = require('../utils/path-resolver.util');
 
 const optionDefs = [
   { flag: '--input-file', param: true, default: null }

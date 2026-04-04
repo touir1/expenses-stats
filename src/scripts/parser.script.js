@@ -1,9 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const { parseArgs } = require('../utils/cli-args');
-const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
-const { logSuccess, logError } = require('../utils/console-output');
-const { hashExpense } = require('../utils/hash');
+const { parseArgs } = require('../utils/cli-args.util');
+const { getDefaultPaths, resolvePath } = require('../utils/path-resolver.util');
+const { logSuccess, logError } = require('../utils/console-output.util');
+const { hashExpense } = require('../utils/hash.util');
 
 // Parse command-line arguments
 const optionDefs = [

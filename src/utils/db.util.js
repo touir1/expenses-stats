@@ -1,6 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
-const { hashExpense } = require('./hash');
-const { DEFAULT_RATE } = require('./conversion-rates');
+const { hashExpense } = require('./hash.util');
+const { DEFAULT_RATE } = require('./conversion-rates.util');
 
 // Open a SQLite database connection
 function openDatabase(databaseFile) {

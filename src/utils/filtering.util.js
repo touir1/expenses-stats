@@ -1,5 +1,5 @@
-const { normalizeStr, countTokenMatches } = require('./text');
-const { toComparableString } = require('./date-utils');
+const { normalizeStr, countTokenMatches } = require('./text.util');
+const { toComparableString } = require('./date.util');
 
 /**
  * Match a single value against a filter condition.

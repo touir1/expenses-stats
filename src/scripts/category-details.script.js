@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
 const path = require('path');
-const { parseCSVLine } = require('../utils/csv');
-const { normalizeStr } = require('../utils/text');
-const { loadConversionRates, convertToEUR } = require('../utils/conversion-rates');
-const { readCSVLines, fileExists } = require('../utils/data');
-const { parseArgs } = require('../utils/cli-args');
-const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
-const { logError, logInfo } = require('../utils/console-output');
+const { parseCSVLine } = require('../utils/csv.util');
+const { normalizeStr } = require('../utils/text.util');
+const { loadConversionRates, convertToEUR } = require('../utils/conversion-rates.util');
+const { readCSVLines, fileExists } = require('../utils/data.util');
+const { parseArgs } = require('../utils/cli-args.util');
+const { getDefaultPaths, resolvePath } = require('../utils/path-resolver.util');
+const { logError, logInfo } = require('../utils/console-output.util');
 
 async function main() {
   const optionDefs = [
@@ -55,8 +55,8 @@ Examples:
 
     if (useDatabase) {
       // --- DATABASE MODE ---
-      const { openDatabase, getExpensesFromDb, getConversionRatesMapFromDb } = require('../utils/db');
-      const { getRateForDate } = require('../utils/conversion-rates');
+      const { openDatabase, getExpensesFromDb, getConversionRatesMapFromDb } = require('../utils/db.util');
+      const { getRateForDate } = require('../utils/conversion-rates.util');
       const databaseFile = resolvePath(parsedArgs['database'], defaults.databaseFile);
 
       const db = await openDatabase(databaseFile);

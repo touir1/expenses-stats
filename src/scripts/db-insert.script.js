@@ -1,12 +1,12 @@
 const path = require('path');
-const { readCSV, loadCategories, loadCategoryPatterns, fileExists } = require('../utils/data');
+const { readCSV, loadCategories, loadCategoryPatterns, fileExists } = require('../utils/data.util');
 const { openDatabase, initializeDatabase, loadCategoriesIntoDb, loadCategoryPatternsIntoDb,
         loadForcedCategorizationsIntoDb, loadConversionRatesIntoDb, getCategoryIdByLabel, getExpenseCount, 
         insertExpense, insertExpensesBatch, getRowCount, getAllCategoriesAsMap, getAllExpensesAsMap, 
-        hashExpense } = require('../utils/db');
-const { parseArgs } = require('../utils/cli-args');
-const { getDefaultPaths, resolvePath, ensureDir } = require('../utils/path-resolver');
-const { logSuccess, logError, logWarning, logInfo } = require('../utils/console-output');
+        hashExpense } = require('../utils/db.util');
+const { parseArgs } = require('../utils/cli-args.util');
+const { getDefaultPaths, resolvePath, ensureDir } = require('../utils/path-resolver.util');
+const { logSuccess, logError, logWarning, logInfo } = require('../utils/console-output.util');
 
 // Helper function to load forced categories from JSON file
 function loadForcedCategories(filePath) {

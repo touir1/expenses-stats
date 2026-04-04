@@ -3,10 +3,10 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const { parseArgs } = require('../utils/cli-args');
-const { runCommand } = require('../utils/process-runner');
-const { ensureRatesUpdated } = require('../utils/rate-manager');
-const { logSuccess, logError, logWarning, logInfo } = require('../utils/console-output');
+const { parseArgs } = require('../utils/cli-args.util');
+const { runCommand } = require('../utils/process-runner.util');
+const { ensureRatesUpdated } = require('../utils/rate-manager.util');
+const { logSuccess, logError, logWarning, logInfo } = require('../utils/console-output.util');
 
 function validateDateFormat(dateStr) {
   if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) return false;
@@ -95,7 +95,7 @@ Examples:
     // Step 1: Parse
     if (!skipParsing) {
       await runCommand(
-        path.join(__dirname, 'parser.js'),
+        path.join(__dirname, 'parser.script.js'),
         [],
         { description: 'Step 1: Parsing depenses.txt to CSV' }
       );
@@ -106,7 +106,7 @@ Examples:
     // Step 2: Label
     if (!skipLabeling) {
       await runCommand(
-        path.join(__dirname, 'label.js'),
+        path.join(__dirname, 'label.script.js'),
         [
           '--input-file', path.join(__dirname, '..', '..', 'data', 'processed', 'depenses.csv'),
           '--output-file', path.join(__dirname, '..', '..', 'data', 'processed', 'depenses-labeled.csv'),
@@ -128,7 +128,7 @@ Examples:
     if (useDatabase) {
       // Step 3: DB Insert
       await runCommand(
-        path.join(__dirname, 'db-insert.js'),
+        path.join(__dirname, 'db-insert.script.js'),
         ['--input-file', labeledCsv, '--database', databaseFile],
         { description: 'Step 3: Loading labeled data into database' }
       );
@@ -142,7 +142,7 @@ Examples:
       if (applyFilter) statsArgs.push('--filter', applyFilter);
 
       await runCommand(
-        path.join(__dirname, 'stats.js'),
+        path.join(__dirname, 'stats.script.js'),
         statsArgs,
         { description: `Step 4: Generating statistics from database (${beginDate} to ${endDate}${applyFilter ? `, filter: ${applyFilter}` : ''})` }
       );
@@ -152,7 +152,7 @@ Examples:
       const dateFilteredOutput = path.join(__dirname, '..', '..', 'output', `depenses-${dateRangeSuffix}-filtered.csv`);
 
       await runCommand(
-        path.join(__dirname, 'filter.js'),
+        path.join(__dirname, 'filter.script.js'),
         ['--input-file', inputForStats, '--output-file', dateFilteredOutput, '--begin-date', beginDate, '--end-date', endDate],
         { description: `Step 3: Filtering by date range (${beginDate} to ${endDate})` }
       );
@@ -171,7 +171,7 @@ Examples:
 
         const additionalFilteredOutput = path.join(__dirname, '..', '..', 'output', `depenses-${dateRangeSuffix}-${applyFilter}-filtered.csv`);
         await runCommand(
-          path.join(__dirname, 'filter.js'),
+          path.join(__dirname, 'filter.script.js'),
           ['--input-file', inputForStats, '--output-file', additionalFilteredOutput, '--filters-file', filterFile],
           { description: `Step 4: Applying additional "${applyFilter}" filter (${filterDef.description})` }
         );
@@ -180,7 +180,7 @@ Examples:
 
       // Step 5: Stats from CSV
       await runCommand(
-        path.join(__dirname, 'stats.js'),
+        path.join(__dirname, 'stats.script.js'),
         [
           '--input-file', inputForStats,
           '--output', 'both', '--output-file', statsOutputFile,

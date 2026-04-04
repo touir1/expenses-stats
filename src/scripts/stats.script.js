@@ -1,12 +1,12 @@
 const fs = require('fs');
 const path = require('path');
-const { DEFAULT_RATE, loadConversionRates, getRateForDate } = require('../utils/conversion-rates');
-const { readCSV, readJSON, fileExists } = require('../utils/data');
-const { parseArgs } = require('../utils/cli-args');
-const { getDefaultPaths, resolvePath } = require('../utils/path-resolver');
-const { logSuccess, logError, logInfo } = require('../utils/console-output');
-const { matchesFilter } = require('../utils/filtering');
-const { toComparableString } = require('../utils/date-utils');
+const { DEFAULT_RATE, loadConversionRates, getRateForDate } = require('../utils/conversion-rates.util');
+const { readCSV, readJSON, fileExists } = require('../utils/data.util');
+const { parseArgs } = require('../utils/cli-args.util');
+const { getDefaultPaths, resolvePath } = require('../utils/path-resolver.util');
+const { logSuccess, logError, logInfo } = require('../utils/console-output.util');
+const { matchesFilter } = require('../utils/filtering.util');
+const { toComparableString } = require('../utils/date.util');
 
 // Parse command-line arguments
 const optionDefs = [
@@ -100,7 +100,7 @@ async function main() {
 
   if (useDatabase) {
     // --- DATABASE MODE ---
-    const { openDatabase, getExpensesFromDb, getConversionRatesMapFromDb } = require('../utils/db');
+    const { openDatabase, getExpensesFromDb, getConversionRatesMapFromDb } = require('../utils/db.util');
     const databaseFile = resolvePath(parsedArgs['database'], defaults.databaseFile);
 
     const db = await openDatabase(databaseFile);

@@ -2,9 +2,9 @@
 
 const path = require('path');
 const fs = require('fs');
-const { parseArgs } = require('../utils/cli-args');
-const { runCommand } = require('../utils/process-runner');
-const { ensureRatesUpdated } = require('../utils/rate-manager');
+const { parseArgs } = require('../utils/cli-args.util');
+const { runCommand } = require('../utils/process-runner.util');
+const { ensureRatesUpdated } = require('../utils/rate-manager.util');
 
 async function main() {
   // Parse pipeline arguments
@@ -68,7 +68,7 @@ Examples:
     // Step 1: Parse
     if (!skipParsing) {
       await runCommand(
-        path.join(__dirname, 'parser.js'),
+        path.join(__dirname, 'parser.script.js'),
         [],
         { description: 'Step 1: Parsing depenses.txt to CSV' }
       );
@@ -79,7 +79,7 @@ Examples:
     // Step 2: Label
     if (!skipLabeling) {
       await runCommand(
-        path.join(__dirname, 'label.js'),
+        path.join(__dirname, 'label.script.js'),
         [
           '--input-file', path.join(__dirname, '..', '..', 'data', 'processed', 'depenses.csv'),
           '--output-file', path.join(__dirname, '..', '..', 'data', 'processed', 'depenses-labeled.csv'),
@@ -101,7 +101,7 @@ Examples:
     if (useDatabase) {
       // Step 3: DB Insert
       await runCommand(
-        path.join(__dirname, 'db-insert.js'),
+        path.join(__dirname, 'db-insert.script.js'),
         ['--input-file', labeledCsv, '--database', databaseFile],
         { description: 'Step 3: Loading labeled data into database' }
       );
@@ -114,7 +114,7 @@ Examples:
       if (filterKey) statsArgs.push('--filter', filterKey);
 
       await runCommand(
-        path.join(__dirname, 'stats.js'),
+        path.join(__dirname, 'stats.script.js'),
         statsArgs,
         { description: `Step 4: Generating statistics from database${filterKey ? ` (filter: ${filterKey})` : ''}` }
       );
@@ -133,7 +133,7 @@ Examples:
         fs.writeFileSync(filterFile, JSON.stringify(filterDef, null, 2), 'utf-8');
 
         await runCommand(
-          path.join(__dirname, 'filter.js'),
+          path.join(__dirname, 'filter.script.js'),
           [
             '--input-file',  inputForStats,
             '--output-file', path.join(__dirname, '..', '..', 'output', `depenses-${filterKey}-filtered.csv`),
@@ -146,7 +146,7 @@ Examples:
 
       // Step 4: Stats from CSV
       await runCommand(
-        path.join(__dirname, 'stats.js'),
+        path.join(__dirname, 'stats.script.js'),
         [
           '--input-file', inputForStats,
           '--output', 'both',

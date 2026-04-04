@@ -6,8 +6,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { parseCSVLine } = require('./csv');
-const { ensureDir } = require('./path-resolver');
+const { parseCSVLine } = require('./csv.util');
+const { ensureDir } = require('./path-resolver.util');
 
 // ─── CSV ─────────────────────────────────────────────────────────────────────
 

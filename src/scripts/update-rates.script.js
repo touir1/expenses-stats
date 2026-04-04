@@ -3,9 +3,9 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const { parseArgs } = require('../utils/cli-args');
-const { getDefaultPaths } = require('../utils/path-resolver');
-const { logSuccess, logError, logWarning, logInfo } = require('../utils/console-output');
+const { parseArgs } = require('../utils/cli-args.util');
+const { getDefaultPaths } = require('../utils/path-resolver.util');
+const { logSuccess, logError, logWarning, logInfo } = require('../utils/console-output.util');
 
 /**
  * Fetch EUR to TND conversion rates from frankfurter.dev API
@@ -315,8 +315,8 @@ Note:
 
   // Optionally sync all rates to the SQLite database
   if (databaseArg && successCount > 0) {
-    const { openDatabase, initializeDatabase, loadConversionRatesIntoDb } = require('../utils/db');
-    const { ensureDir } = require('../utils/path-resolver');
+    const { openDatabase, initializeDatabase, loadConversionRatesIntoDb } = require('../utils/db.util');
+    const { ensureDir } = require('../utils/path-resolver.util');
     ensureDir(path.dirname(databaseArg));
     const db = await openDatabase(databaseArg);
     try {

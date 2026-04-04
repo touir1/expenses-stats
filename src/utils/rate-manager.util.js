@@ -3,8 +3,8 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
-const { getProjectRoot } = require('./path-resolver');
-const { logWarning, logSuccess, logInfo, colors } = require('./console-output');
+const { getProjectRoot } = require('./path-resolver.util');
+const { logWarning, logSuccess, logInfo, colors } = require('./console-output.util');
 
 // Simple log wrapper using console-output colors
 function log(color, message) {
