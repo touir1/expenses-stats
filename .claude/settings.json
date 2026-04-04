@@ -1,0 +1,10 @@
+{
+  "ignorePatterns": [
+    "output/**",
+    "data/processed/depenses*.csv",
+    "data/processed/depenses-labeled.csv",
+    "data/database/**",
+    "node_modules/**",
+    "package-lock.json"
+  ]
+}
