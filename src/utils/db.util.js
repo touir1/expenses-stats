@@ -494,15 +494,21 @@ function loadConversionRatesIntoDb(db, rows) {
 }
 
 // Get conversion rate for a DD/MM/YYYY date using nearest-prior-date logic.
-// Falls back to DEFAULT_RATE if no rate is found.
+// Falls back to earliest available rate, then DEFAULT_RATE — matching getRateForDate() semantics.
 function getConversionRateFromDb(db, dateStr, base = 'EUR', quote = 'TND') {
   return new Promise((resolve, reject) => {
     const parts = dateStr.split('/');
     if (parts.length !== 3) { resolve(DEFAULT_RATE); return; }
     const isoDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+    const b = base.toUpperCase();
+    const q = quote.toUpperCase();
     db.get(
-      'SELECT rate FROM conversion_rates WHERE base = ? AND quote = ? AND date <= ? ORDER BY date DESC LIMIT 1',
-      [base.toUpperCase(), quote.toUpperCase(), isoDate],
+      `SELECT rate FROM (
+         SELECT rate, date FROM conversion_rates WHERE base = ? AND quote = ? AND date <= ? ORDER BY date DESC LIMIT 1
+         UNION ALL
+         SELECT rate, date FROM conversion_rates WHERE base = ? AND quote = ? ORDER BY date ASC LIMIT 1
+       ) LIMIT 1`,
+      [b, q, isoDate, b, q],
       (err, row) => {
         if (err) reject(err);
         else resolve(row ? row.rate : DEFAULT_RATE);

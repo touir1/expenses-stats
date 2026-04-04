@@ -172,24 +172,19 @@ const leaves = buildLeafList(categoryDefs, '');
 
 // Read and process CSV
 try {
-  const { headers, lines, columnMap } = readCSVLines(inputFile);
-
-  if (lines.length < 1) {
-    console.error('Error: CSV file is empty');
-    process.exit(1);
-  }
+  const { headerLine, lines, columnMap } = readCSVLines(inputFile);
 
   // Build output with added category column
-  const outputLines = [lines[0] + ',' + categoryColName];
+  const outputLines = [headerLine + ',' + categoryColName];
   const tally = {};
 
-  for (let i = 1; i < lines.length; i++) {
-    const parts = parseCSVLine(lines[i]);
+  for (const line of lines) {
+    const parts = parseCSVLine(line);
     // Check category patterns first
     const patternLabel = checkForcedCategory(parts, columnMap, categoryPatterns);
     const label = patternLabel || assignCategory(parts, columnMap, leaves) || defaultLabel;
     tally[label] = (tally[label] || 0) + 1;
-    outputLines.push(lines[i] + ',' + label);
+    outputLines.push(line + ',' + label);
   }
 
   writeCSVRaw(outputFile, outputLines.join('\n') + '\n');

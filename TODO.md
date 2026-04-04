@@ -9,8 +9,8 @@
 
 ## Inconsistencies
 
-- [ ] **Conversion rate fallback differs between modes**: CSV mode falls back to earliest available rate; DB mode returns nothing — same date range produces different totals
-- [ ] **`readCSV()` vs `readCSVLines()` return different shapes**: scripts pick whichever was convenient, making maintenance fragile
+- [x] **Conversion rate fallback differs between modes**: CSV mode falls back to earliest available rate; DB mode returns nothing — `getConversionRateFromDb` now uses a UNION query to try nearest-prior then earliest available, matching `getRateForDate()` semantics
+- [x] **`readCSV()` vs `readCSVLines()` return different shapes**: `readCSVLines` now returns `{ headers, headerLine, lines, columnMap }` where `lines` is data-only (no header row); callers updated to use `headerLine` for re-serialization and iterate `lines` directly
 
 ## Dead Code
 

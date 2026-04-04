@@ -1,9 +1,7 @@
-const fs = require('fs');
 const path = require('path');
 const { parseCSVLine } = require('../utils/csv.util');
-const { normalizeStr, countTokenMatches } = require('../utils/text.util');
 const { matchesFilter } = require('../utils/filtering.util');
-const { readCSVLines, writeCSVRaw, readJSON, fileExists } = require('../utils/data.util');
+const { readCSVLines, writeCSVRaw, readJSON } = require('../utils/data.util');
 const { parseArgs } = require('../utils/cli-args.util');
 const { getDefaultPaths, resolvePath } = require('../utils/path-resolver.util');
 const { logError } = require('../utils/console-output.util');
@@ -156,28 +154,23 @@ function matchesAllFilters(row, columnMap) {
 
 // Read the CSV file
 try {
-  const { headers, lines, columnMap } = readCSVLines(inputFile);
-
-  if (lines.length < 1) {
-    logError('CSV file is empty');
-    process.exit(1);
-  }
+  const { headerLine, lines, columnMap } = readCSVLines(inputFile);
 
   // Parse and filter data rows
   const filteredRows = [];
   let totalRows = 0;
 
-  for (let i = 1; i < lines.length; i++) {
+  for (const line of lines) {
     totalRows++;
-    const parts = parseCSVLine(lines[i]);
-    
+    const parts = parseCSVLine(line);
+
     if (matchesAllFilters(parts, columnMap)) {
-      filteredRows.push(lines[i]);
+      filteredRows.push(line);
     }
   }
 
   // Build output CSV
-  let csv = lines[0] + '\n';
+  let csv = headerLine + '\n';
   csv += filteredRows.join('\n');
   if (filteredRows.length > 0) {
     csv += '\n';

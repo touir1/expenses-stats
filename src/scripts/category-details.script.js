@@ -97,7 +97,7 @@ Examples:
       }
 
       const { lines, columnMap } = readCSVLines(inputFile);
-      if (lines.length < 2) {
+      if (lines.length < 1) {
         logError('CSV file is empty or has no data rows');
         process.exit(1);
       }
@@ -112,8 +112,8 @@ Examples:
       const normalizedCat = normalizeStr(category);
       const normalizedSub = subcategory ? normalizeStr(subcategory) : '';
 
-      for (let i = 1; i < lines.length; i++) {
-        const cols = parseCSVLine(lines[i]);
+      for (const line of lines) {
+        const cols = parseCSVLine(line);
         const catValue = cols[categoryCol]?.trim() || '';
         const [catName, subName] = catValue.split('/');
         if (normalizeStr(catName) !== normalizedCat) continue;

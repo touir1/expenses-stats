@@ -40,23 +40,25 @@ function readCSV(filePath) {
 }
 
 /**
- * Read a CSV file and return headers + raw parts arrays (for scripts that use index-based access).
+ * Read a CSV file and return headers + raw data lines (for pass-through scripts that re-emit original rows).
+ * headerLine preserves the original header string for re-serialization.
+ * lines contains only data rows (no header), so callers iterate from index 0.
  * @param {string} filePath
- * @returns {{ headers: string[], lines: string[], columnMap: Object.<string, number> }}
+ * @returns {{ headers: string[], headerLine: string, lines: string[], columnMap: Object.<string, number> }}
  */
 function readCSVLines(filePath) {
   const content = fs.readFileSync(filePath, 'utf-8').replace(/^\uFEFF/, '');
-  const lines = content.split('\n').filter(l => l.trim());
+  const allLines = content.split('\n').filter(l => l.trim());
 
-  if (lines.length < 1) {
+  if (allLines.length < 1) {
     throw new Error(`CSV file is empty: ${filePath}`);
   }
 
-  const headers = parseCSVLine(lines[0]).map(h => h.trim());
+  const headers = parseCSVLine(allLines[0]).map(h => h.trim());
   const columnMap = {};
   headers.forEach((h, i) => { columnMap[h] = i; });
 
-  return { headers, lines, columnMap };
+  return { headers, headerLine: allLines[0], lines: allLines.slice(1), columnMap };
 }
 
 /**
