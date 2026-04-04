@@ -22,7 +22,7 @@ const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
 
 if (showHelp) {
   console.log(`
-Usage: node filter.js [options]
+Usage: node filter.script.js [options]
 
 Options:
   --input-file <path>    Input CSV file (default: data/processed/depenses-labeled.csv)
@@ -47,9 +47,9 @@ Operator Support:
   Date format: DD/MM/YYYY
 
 Example:
-  node filter.js --input-file data.csv --output-file filtered.csv \\
+  node filter.script.js --input-file data.csv --output-file filtered.csv \\
     --filters '{"currency_code": "EUR", "amount": {"gte": 100}}'
-  node filter.js --begin-date "01/01/2024" --end-date "31/12/2024"
+  node filter.script.js --begin-date "01/01/2024" --end-date "31/12/2024"
 `);
   process.exit(0);
 }

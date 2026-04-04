@@ -26,7 +26,7 @@ const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
 
 if (showHelp) {
   console.log(`
-Usage: node stats.js [options]
+Usage: node stats.script.js [options]
 
 Options:
   --input-file <path>        Input CSV file (default: data/processed/depenses-labeled.csv)
@@ -42,11 +42,11 @@ Options:
   -h, --help                Show this help message
 
 Examples:
-  node stats.js
-  node stats.js --convert-to EUR
-  node stats.js --use-database
-  node stats.js --use-database --begin-date 01/01/2025 --end-date 31/12/2025
-  node stats.js --use-database --filter car
+  node stats.script.js
+  node stats.script.js --convert-to EUR
+  node stats.script.js --use-database
+  node stats.script.js --use-database --begin-date 01/01/2025 --end-date 31/12/2025
+  node stats.script.js --use-database --filter car
 `);
   process.exit(0);
 }

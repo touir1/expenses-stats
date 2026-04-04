@@ -36,7 +36,7 @@ const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
 
 if (showHelp) {
   console.log(`
-Usage: node db-insert.js [options]
+Usage: node db-insert.script.js [options]
 
 Options:
   --input-file <path>              Input labeled CSV file (default: data/processed/depenses-labeled.csv)
@@ -49,8 +49,8 @@ Options:
   -h, --help                      Show this help message
 
 Examples:
-  node db-insert.js --input-file data/processed/depenses-labeled.csv --database data/depenses.db
-  node db-insert.js --reset-database --database data/depenses.db
+  node db-insert.script.js --input-file data/processed/depenses-labeled.csv --database data/depenses.db
+  node db-insert.script.js --reset-database --database data/depenses.db
 `);
   process.exit(0);
 }

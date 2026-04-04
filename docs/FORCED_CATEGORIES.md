@@ -152,9 +152,9 @@ const all = await getAllForcedCategorizationsFromDb(db);
 
 ## Integration with Label.js
 
-The current `label.js` implementation does not yet use database-backed forced categorizations. It loads from `category-patterns.json` instead.
+The current `label.script.js` implementation does not yet use database-backed forced categorizations. It loads from `category-patterns.json` instead.
 
-To integrate forced categorizations into label.js:
+To integrate forced categorizations into label.script.js:
 
 1. Compute the hash for each CSV row (description, currency_code, amount)
 2. Call `getForcedCategoryFromDb()` before applying automatic categorization
@@ -162,7 +162,7 @@ To integrate forced categorizations into label.js:
 
 Example enhancement:
 ```javascript
-// In label.js processing loop
+// In label.script.js processing loop
 const hash = hashExpense(row.description, row.currency_code, row.amount);
 const forced = await getForcedCategoryFromDb(db, hash, row.date);
 const label = forced || assignCategory(row, columnMap, categoryDefs, '');
@@ -394,9 +394,9 @@ const all = await getAllForcedCategorizationsFromDb(db);
 
 ## Integration with Label.js
 
-The current `label.js` implementation does not yet use database-backed forced categorizations. It loads from `category-patterns.json` instead. 
+The current `label.script.js` implementation does not yet use database-backed forced categorizations. It loads from `category-patterns.json` instead. 
 
-To integrate forced categorizations into label.js:
+To integrate forced categorizations into label.script.js:
 
 1. Read the CSV row data (date, description, currency, amount)
 2. Call `getForcedCategoryFromDb()` before applying automatic categorization
@@ -404,7 +404,7 @@ To integrate forced categorizations into label.js:
 
 Example enhancement:
 ```javascript
-// In label.js processing loop
+// In label.script.js processing loop
 const forced = await getForcedCategoryFromDb(db, row.date, row.description, row.currency, row.amount);
 const label = forced || assignCategory(row, columnMap, categoryDefs, '');
 ```

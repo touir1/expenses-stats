@@ -88,7 +88,7 @@ Category-level tokens are auto-generated at runtime from all subcategory token l
 
 ---
 
-## Filter operators (`src/utils/filtering.js`)
+## Filter operators (`src/utils/filtering.util.js`)
 
 | Operator | Type | Description |
 |----------|------|-------------|

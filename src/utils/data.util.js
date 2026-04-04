@@ -1,7 +1,7 @@
 /**
  * Centralized data access module.
  * Handles reading/writing CSV files and reading JSON config files.
- * Database-specific operations remain in db-insert.js.
+ * Database-specific operations remain in db-insert.script.js.
  */
 
 const fs = require('fs');

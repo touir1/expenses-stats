@@ -25,7 +25,7 @@ async function main() {
 
   if (showHelp || !category) {
     console.log(`
-Usage: node category-details.js --category <name> [--subcategory <name>] [options]
+Usage: node category-details.script.js --category <name> [--subcategory <name>] [options]
 
 Show detailed expense entries for a specific category or subcategory.
 
@@ -40,9 +40,9 @@ Options:
   -h, --help              Show this help message
 
 Examples:
-  node category-details.js --category car
-  node category-details.js --category car --subcategory mechanic
-  node category-details.js --category food --use-database
+  node category-details.script.js --category car
+  node category-details.script.js --category car --subcategory mechanic
+  node category-details.script.js --category food --use-database
 `);
     process.exit(0);
   }

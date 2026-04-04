@@ -44,7 +44,7 @@ async function ensureRatesUpdated(ratesPath = null) {
       logWarning(`Conversion rates are outdated (last: ${lastDate}, today: ${todayStr})`)
       logInfo('Attempting to update conversion rates');
       try {
-        const proc = spawn('node', [path.join(getProjectRoot(), 'src', 'scripts', 'update-rates.js'), '--auto'], {
+        const proc = spawn('node', [path.join(getProjectRoot(), 'src', 'scripts', 'update-rates.script.js'), '--auto'], {
           cwd: getProjectRoot(),
           stdio: 'inherit'
         });

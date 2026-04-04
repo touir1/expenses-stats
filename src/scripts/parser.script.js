@@ -15,7 +15,7 @@ const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
 
 if (showHelp) {
   console.log(`
-Usage: node parser.js [options]
+Usage: node parser.script.js [options]
 
 Options:
   --input-file <path>   Input text file containing expenses (default: data/raw/depenses.txt)
@@ -23,8 +23,8 @@ Options:
   -h, --help           Show this help message
 
 Example:
-  node parser.js --input-file expenses.txt --output-file expenses.csv
-  node parser.js -h
+  node parser.script.js --input-file expenses.txt --output-file expenses.csv
+  node parser.script.js -h
 `);
   process.exit(0);
 }

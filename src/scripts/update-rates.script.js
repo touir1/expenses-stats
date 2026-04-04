@@ -117,7 +117,7 @@ async function main() {
 
   if (showHelp) {
     console.log(`
-Usage: node update-rates.js [options]
+Usage: node update-rates.script.js [options]
 
 Fetch currency conversion rates and update data/processed/conversion-rates.csv
 Uses frankfurter.dev API (FREE, no limits, no authentication required)
@@ -135,10 +135,10 @@ API: https://frankfurter.dev (open source, no rate limits)
 GitHub: https://github.com/hakanensari/frankfurter
 
 Examples:
-  node update-rates.js
-  node update-rates.js --start 2024-01-01 --end 2024-12-31
-  node update-rates.js --base EUR --quote USD --auto
-  node update-rates.js --auto
+  node update-rates.script.js
+  node update-rates.script.js --start 2024-01-01 --end 2024-12-31
+  node update-rates.script.js --base EUR --quote USD --auto
+  node update-rates.script.js --auto
   npm run update-rates
 
 Note:

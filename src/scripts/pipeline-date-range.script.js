@@ -38,7 +38,7 @@ async function main() {
 
   if (showHelp) {
     console.log(`
-Usage: node pipeline-date-range.js [options]
+Usage: node pipeline-date-range.script.js [options]
 
 Pipeline Stages (CSV mode):
   1. Parse → 2. Label → 3. Filter by date → 4. Additional filter (opt) → 5. Stats
@@ -52,14 +52,14 @@ Options:
   --begin-date <date>      Start date for filtering (DD/MM/YYYY format, required)
   --end-date <date>        End date for filtering (DD/MM/YYYY format, required)
   --filter <key>           Apply named filter (car, eur, tnd, high_value, low_value, food, transport)
-  --use-database           Load data into DB then generate stats from DB (no filter.js step)
+  --use-database           Load data into DB then generate stats from DB (no filter.script.js step)
   --database <path>        SQLite database file (default: data/database/depenses.db)
   -h, --help              Show this help message
 
 Examples:
-  node pipeline-date-range.js --begin-date "01/03/2026" --end-date "31/03/2026"
-  node pipeline-date-range.js --begin-date "01/01/2025" --end-date "31/12/2025" --filter car
-  node pipeline-date-range.js --begin-date "01/01/2025" --end-date "31/12/2025" --use-database
+  node pipeline-date-range.script.js --begin-date "01/03/2026" --end-date "31/03/2026"
+  node pipeline-date-range.script.js --begin-date "01/01/2025" --end-date "31/12/2025" --filter car
+  node pipeline-date-range.script.js --begin-date "01/01/2025" --end-date "31/12/2025" --use-database
 `);
     process.exit(0);
   }
@@ -133,7 +133,7 @@ Examples:
         { description: 'Step 3: Loading labeled data into database' }
       );
 
-      // Step 4: Stats from DB (date range + optional filter handled inside stats.js)
+      // Step 4: Stats from DB (date range + optional filter handled inside stats.script.js)
       const statsArgs = [
         '--use-database', '--database', databaseFile,
         '--begin-date', beginDate, '--end-date', endDate,

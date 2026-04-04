@@ -24,7 +24,7 @@ const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
 
 if (showHelp) {
   console.log(`
-Usage: node label.js [options]
+Usage: node label.script.js [options]
 
 Options:
   --input-file <path>         Input CSV file (default: data/processed/depenses.csv)
@@ -37,8 +37,8 @@ Options:
   -h, --help                 Show this help message
 
 Examples:
-  node label.js --categories-file config/categories.config.json
-  node label.js --help
+  node label.script.js --categories-file config/categories.config.json
+  node label.script.js --help
 `);
   process.exit(0);
 }

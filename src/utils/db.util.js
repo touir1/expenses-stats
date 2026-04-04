@@ -540,7 +540,7 @@ function loadCategoryPatternsIntoDb(db, patterns) {
 }
 
 // Get all category patterns, joined with their category label.
-// Ordered longest-pattern-first (same priority as label.js matching logic).
+// Ordered longest-pattern-first (same priority as label.script.js matching logic).
 function getCategoryPatternsFromDb(db) {
   return new Promise((resolve, reject) => {
     db.all(
@@ -619,7 +619,7 @@ function getExpensesFromDb(db, { beginDate, endDate } = {}) {
 }
 
 // Load all conversion rates for a given pair into a { 'YYYY-MM-DD': rate } map.
-// Same format returned by loadConversionRates() from conversion-rates.js,
+// Same format returned by loadConversionRates() from conversion-rates.util.js,
 // so getRateForDate() works with it directly.
 function getConversionRatesMapFromDb(db, base = 'EUR', quote = 'TND') {
   return new Promise((resolve, reject) => {

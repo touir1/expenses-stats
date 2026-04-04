@@ -25,7 +25,7 @@ async function main() {
 
   if (showHelp) {
     console.log(`
-Usage: node pipeline.js [options]
+Usage: node pipeline.script.js [options]
 
 Pipeline Stages (CSV mode):
   1. Parse: Convert depenses.txt → depenses.csv
@@ -44,15 +44,15 @@ Options:
   --skip-labeling       Skip the labeling step (use existing labeled CSV)
   --filter <key>        Apply named filter from config/filters.config.json
                         Available: car, eur, tnd, high_value, low_value, food, transport
-  --use-database        Load data into DB then generate stats from DB (no filter.js step)
+  --use-database        Load data into DB then generate stats from DB (no filter.script.js step)
   --database <path>     SQLite database file (default: data/database/depenses.db)
   -h, --help           Show this help message
 
 Examples:
-  node pipeline.js
-  node pipeline.js --filter car
-  node pipeline.js --use-database
-  node pipeline.js --use-database --filter car
+  node pipeline.script.js
+  node pipeline.script.js --filter car
+  node pipeline.script.js --use-database
+  node pipeline.script.js --use-database --filter car
 `);
     process.exit(0);
   }
@@ -106,7 +106,7 @@ Examples:
         { description: 'Step 3: Loading labeled data into database' }
       );
 
-      // Step 4: Stats from DB (filter applied inside stats.js via SQL)
+      // Step 4: Stats from DB (filter applied inside stats.script.js via SQL)
       const statsArgs = [
         '--use-database', '--database', databaseFile,
         '--output', 'both', '--output-file', statsOutputFile
