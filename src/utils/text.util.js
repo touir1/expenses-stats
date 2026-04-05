@@ -15,19 +15,25 @@ function normalizeStr(s) {
 
 /**
  * Match tokens against a value, returning both count and total matched character length.
- * Used for scoring and coverage calculation.
+ * Each token may be a plain string (word-boundary match, default) or an object
+ * { token: string, word: boolean } where word=false enables substring/contains matching.
  * @param {string} value
- * @param {string[]} tokens
+ * @param {Array<string|{token:string,word?:boolean}>} tokens
  * @returns {{ count: number, matchedChars: number, descLength: number }}
  */
 function matchTokens(value, tokens) {
   const normValue = normalizeStr(value);
   let count = 0;
   let matchedChars = 0;
-  for (const token of tokens) {
+  for (const tokenDef of tokens) {
+    const token = typeof tokenDef === 'string' ? tokenDef : tokenDef.token;
+    const useWordBoundary = typeof tokenDef === 'string' ? true : tokenDef.word !== false;
     const normToken = normalizeStr(token);
     const escaped = normToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    if (new RegExp('\\b' + escaped + '\\b', 'i').test(normValue)) {
+    const matches = useWordBoundary
+      ? new RegExp('\\b' + escaped + '\\b', 'i').test(normValue)
+      : normValue.includes(normToken);
+    if (matches) {
       count++;
       matchedChars += normToken.length;
     }
@@ -36,9 +42,9 @@ function matchTokens(value, tokens) {
 }
 
 /**
- * Count how many tokens match value as whole words (word-boundary + accent normalization).
+ * Count how many tokens match value (word-boundary or contains depending on token definition).
  * @param {string} value
- * @param {string[]} tokens
+ * @param {Array<string|{token:string,word?:boolean}>} tokens
  * @returns {number}
  */
 function countTokenMatches(value, tokens) {

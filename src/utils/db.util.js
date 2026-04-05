@@ -54,6 +54,7 @@ function initializeDatabase(db, { dropAll = false } = {}) {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           filter_id INTEGER NOT NULL,
           token TEXT NOT NULL,
+          word INTEGER NOT NULL DEFAULT 1,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (filter_id) REFERENCES category_filters(id) ON DELETE CASCADE,
           UNIQUE(filter_id, token)
@@ -111,6 +112,7 @@ function initializeDatabase(db, { dropAll = false } = {}) {
           date TEXT,
           amount REAL,
           currency TEXT,
+          word INTEGER NOT NULL DEFAULT 0,
           category_id INTEGER NOT NULL,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
@@ -196,7 +198,7 @@ function loadCategoriesIntoDb(db, categories) {
         );
 
         const tokenStmt = db.prepare(
-          'INSERT INTO category_filter_tokens (filter_id, token) VALUES (?, ?)'
+          'INSERT INTO category_filter_tokens (filter_id, token, word) VALUES (?, ?, ?)'
         );
 
         let filterInsertCount = 0;
@@ -223,8 +225,10 @@ function loadCategoriesIntoDb(db, categories) {
                 // Insert tokens if applicable
                 if (isTokens && value.length > 0) {
                   const filterId = this.lastID;
-                  for (const token of value) {
-                    tokenStmt.run([filterId, String(token)], (err) => {
+                  for (const tokenDef of value) {
+                    const token = typeof tokenDef === 'string' ? tokenDef : tokenDef.token;
+                    const word  = typeof tokenDef === 'string' ? 1 : (tokenDef.word !== false ? 1 : 0);
+                    tokenStmt.run([filterId, token, word], (err) => {
                       if (err) console.error(`Error inserting token "${token}":`, err.message);
                       else tokenInsertCount++;
                     });
@@ -365,17 +369,17 @@ function getRowCount(db, table) {
 // Get all tokens for a filter row
 function getFilterTokens(db, filterId) {
   return new Promise((resolve, reject) => {
-    db.all('SELECT id, token FROM category_filter_tokens WHERE filter_id = ? ORDER BY token', [filterId], (err, rows) => {
+    db.all('SELECT id, token, word FROM category_filter_tokens WHERE filter_id = ? ORDER BY token', [filterId], (err, rows) => {
       if (err) reject(err);
-      else resolve(rows || []);
+      else resolve((rows || []).map(r => ({ id: r.id, token: r.token, word: !!r.word })));
     });
   });
 }
 
 // Add a token to an existing filter
-function addFilterToken(db, filterId, token) {
+function addFilterToken(db, filterId, token, word = true) {
   return new Promise((resolve, reject) => {
-    db.run('INSERT OR IGNORE INTO category_filter_tokens (filter_id, token) VALUES (?, ?)', [filterId, token], function(err) {
+    db.run('INSERT OR IGNORE INTO category_filter_tokens (filter_id, token, word) VALUES (?, ?, ?)', [filterId, token, word ? 1 : 0], function(err) {
       if (err) reject(err);
       else resolve(this.lastID);
     });
@@ -456,8 +460,8 @@ function loadCategoryPatternsIntoDb(db, patterns) {
           return;
         }
         db.run(
-          'INSERT OR REPLACE INTO category_patterns (description_pattern, date, amount, currency, category_id) VALUES (?, ?, ?, ?, ?)',
-          [p.description, p.date || null, p.amount != null ? parseFloat(p.amount) : null, p.currency ? p.currency.toUpperCase() : null, row.id],
+          'INSERT OR REPLACE INTO category_patterns (description_pattern, date, amount, currency, word, category_id) VALUES (?, ?, ?, ?, ?, ?)',
+          [p.description, p.date || null, p.amount != null ? parseFloat(p.amount) : null, p.currency ? p.currency.toUpperCase() : null, p.word ? 1 : 0, row.id],
           (err2) => {
             if (err2) console.error(`Error inserting pattern "${p.description}":`, err2.message);
             if (++processed === patterns.length) resolve();
@@ -473,7 +477,7 @@ function loadCategoryPatternsIntoDb(db, patterns) {
 function getCategoryPatternsFromDb(db) {
   return new Promise((resolve, reject) => {
     db.all(
-      `SELECT cp.id, cp.description_pattern, cp.date, cp.amount, cp.currency, c.label AS category_label
+      `SELECT cp.id, cp.description_pattern, cp.date, cp.amount, cp.currency, cp.word, c.label AS category_label
        FROM category_patterns cp
        JOIN categories c ON c.id = cp.category_id
        ORDER BY length(cp.description_pattern) DESC`,
@@ -490,7 +494,7 @@ function getFiltersForCategory(db, categoryId) {
   return new Promise((resolve, reject) => {
     db.all(
       `SELECT f.id, f.column_name, f.operator, f.filter_value,
-              group_concat(ft.token, '|') AS tokens
+              group_concat(ft.token || ':' || ft.word, '|') AS tokens
        FROM category_filters f
        LEFT JOIN category_filter_tokens ft ON ft.filter_id = f.id
        WHERE f.category_id = ?
@@ -504,7 +508,9 @@ function getFiltersForCategory(db, categoryId) {
           column_name: r.column_name,
           operator: r.operator,
           filter_value: r.filter_value,
-          tokens: r.tokens ? r.tokens.split('|') : [],
+          tokens: r.tokens
+            ? r.tokens.split('|').map(t => { const [tok, w] = t.split(':'); return { token: tok, word: w === '1' }; })
+            : [],
         })));
       }
     );

@@ -178,7 +178,14 @@ function checkForcedCategory(row, columnMap, forcedList) {
   for (const forced of forcedList) {
     if (!forced.description) continue;
     const pattern = normalizeStr(forced.description);
-    if (!descriptionValue.includes(pattern)) continue;
+
+    // Match as whole word (word boundary) or substring
+    if (forced.word) {
+      const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (!new RegExp('\\b' + escaped + '\\b', 'i').test(descriptionValue)) continue;
+    } else {
+      if (!descriptionValue.includes(pattern)) continue;
+    }
 
     // Optional exact constraints for disambiguation
     if (forced.date && ('date' in columnMap) && row[columnMap['date']].trim() !== forced.date) continue;
