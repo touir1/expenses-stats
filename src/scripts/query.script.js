@@ -229,7 +229,11 @@ async function main() {
       process.exit(1);
     }
     const { rows: csvRows } = readCSV(csvPath);
-    rows = csvRows;
+    rows = csvRows.slice().sort((a, b) => {
+      const da = (a.date || '').split('/').reverse().join('');
+      const db = (b.date || '').split('/').reverse().join('');
+      return da < db ? -1 : da > db ? 1 : 0;
+    });
     logSuccess(`Loaded from CSV`, csvPath);
   }
 

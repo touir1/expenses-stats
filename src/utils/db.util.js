@@ -537,7 +537,7 @@ function getExpensesFromDb(db, { beginDate, endDate } = {}) {
       FROM expenses e
       LEFT JOIN categories c ON c.id = e.category_id
       ${where}
-      ORDER BY e.date
+      ORDER BY substr(e.date,7,4)||substr(e.date,4,2)||substr(e.date,1,2)
     `;
 
     db.all(sql, params, (err, rows) => {
