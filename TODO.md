@@ -37,14 +37,14 @@
 - [ ] **Empty description validation**: parser accepts blank descriptions, producing uncategorizable rows
 - [ ] **`stats.script.js` drops categories beyond 2 levels**: `exp.category.split('/')` only takes `[mainCat, subCat]` (line 259) — a 3rd level is silently ignored in all output
 - [ ] **Category totals use a single average rate**: `byCategory` computes one average across all rates (line 302–308) while `byMonth` uses per-date rates — same data, different rate logic, diverging totals
-- [ ] **Forced categories (hash-based) never applied**: `pipeline.script.js` passes `--forced-categories-file` to `label.script.js` but `label.script.js` doesn't declare that flag — `parseArgs` silently drops it. `label.script.js` only runs description-substring matching from `category-patterns.config.json`; the hash+date system in `forced_categorizations` DB table is never consulted during labeling
+- [x] **Forced categories flag silently ignored**: `pipeline.script.js` passes `--forced-categories-file` to `label.script.js` but `label.script.js` didn't declare that flag — now declared and wired to `forced-categories.config.json`; `category-patterns.config.json` removed and its entries merged into `forced-categories.config.json`
 
 ## Architecture
 
 - [ ] **`stats.script.js` duplicates calculation logic**: CSV and DB modes diverge completely but compute the same output structure; a data-source abstraction would let both share one calculation pass
 - [ ] **`pipeline.script.js` hardcodes paths instead of using `getDefaultPaths()`**: lines 84–87 build paths manually (`path.join(__dirname, '..', '..', 'data', ...)`) instead of reading from `path-resolver.util.js`; breaks if paths change
-- [ ] **`FORCED_CATEGORIES.md` is internally contradictory**: two conflicting system descriptions — one hash-based (`getForcedCategoryFromDb(db, hash, date)`), one description-based (`getForcedCategoryFromDb(db, date, description, currency, amount)`) — result of unresolved docs drift; needs a single authoritative description matching the actual implementation
+- [x] **`FORCED_CATEGORIES.md` is internally contradictory**: rewrote to match actual implementation — description-substring matching, `category_patterns` table, no hash/date-based lookup
 
 ## Missing Scripts
 
-- [ ] **`check-forced.js` referenced in docs but does not exist**: `FORCED_CATEGORIES.md` documents `node src/scripts/check-forced.js --list` and `check-forced.js "HASH" "DATE"` — script is missing entirely
+- [x] **`check-forced.js` referenced in docs but does not exist**: removed from docs — the old hash-based system it belonged to no longer exists; forced categories are managed via `config/forced-categories.config.json` directly

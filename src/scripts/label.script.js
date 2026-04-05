@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { countTokenMatches } = require('../utils/text.util');
+const { countTokenMatches, matchTokens, normalizeStr } = require('../utils/text.util');
 const { matchesFilter } = require('../utils/filtering.util');
 const { parseCSVLine } = require('../utils/csv.util');
 const { readCSVLines, writeCSVRaw, loadCategories, loadCategoryPatterns, fileExists } = require('../utils/data.util');
@@ -14,10 +14,11 @@ const optionDefs = [
   { flag: '--output-file', param: true, default: null },
   { flag: '--categories', param: true, default: null },
   { flag: '--categories-file', param: true, default: null },
-  { flag: '--category-patterns-file', param: true, default: null },
+  { flag: '--forced-categories-file', param: true, default: null },
   { flag: '--category-col', param: true, default: 'category' },
   { flag: '--default', param: true, default: 'other' },
-  { flag: '--separator', param: true, default: '/' }
+  { flag: '--separator', param: true, default: '/' },
+  { flag: '--min-score', param: true, default: null }
 ];
 
 const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
@@ -31,7 +32,7 @@ Options:
   --output-file <path>        Output CSV file (default: data/processed/depenses-labeled.csv)
   --categories <json>         Categories definition as inline JSON
   --categories-file <path>    Path to JSON file defining categories (default: config/categories.config.json)
-  --category-patterns-file <path> Path to JSON file with category patterns (default: config/category-patterns.config.json)
+  --forced-categories-file <path> Path to JSON file with forced category mappings (default: config/forced-categories.config.json)
   --category-col <name>       Name of the added column (default: category)
   --default <label>           Default label when no category matches (default: "other")
   -h, --help                 Show this help message
@@ -48,11 +49,12 @@ const defaults = getDefaultPaths();
 const inputFile = resolvePath(parsedArgs['input-file'], defaults.parsedFile);
 const outputFile = resolvePath(parsedArgs['output-file'], defaults.inputFile);
 const categoriesFile = parsedArgs['categories-file'] ? resolvePath(parsedArgs['categories-file']) : defaults.categoriesFile;
-const categoryPatternsFile = resolvePath(parsedArgs['category-patterns-file'], defaults.categoryPatternsFile);
+const categoryPatternsFile = resolvePath(parsedArgs['forced-categories-file'], defaults.forcedCategoriesFile);
 const categoryColName = parsedArgs['category-col'] || 'category';
 const defaultLabel = parsedArgs['default'] || 'other';
 const separator = parsedArgs['separator'] || '/';
 const categoriesJson = parsedArgs['categories'] || null;
+const minScore = parseInt(parsedArgs['min-score'], 10) || 1;
 
 // Load category patterns
 let categoryPatterns = [];
@@ -60,7 +62,7 @@ if (categoryPatternsFile && fileExists(categoryPatternsFile)) {
   try {
     categoryPatterns = loadCategoryPatterns(categoryPatternsFile);
   } catch (e) {
-    logWarning('Could not read/parse category-patterns-file', e.message);
+    logWarning('Could not read/parse forced-categories-file', e.message);
   }
 }
 
@@ -108,36 +110,56 @@ function buildLeafList(categories, parentPath) {
   return leaves;
 }
 
-// Score a row against a single leaf's filters (AND logic across filters, sum of token matches)
-// Returns 0 if any filter doesn't match
+// Score a row against a single leaf's filters (AND logic across filters, sum of token matches).
+// Returns { score, coverage } where coverage = matched token chars / description length.
+// Returns { score: 0, coverage: 0 } if any filter fails or an exclude token matches.
 function scoreLeaf(row, columnMap, filters) {
-  if (!filters || Object.keys(filters).length === 0) return 0;
+  if (!filters || Object.keys(filters).length === 0) return { score: 0, coverage: 0 };
   let score = 0;
+  let matchedChars = 0;
+  let descLength = 0;
+
   for (const [colName, condition] of Object.entries(filters)) {
-    if (!(colName in columnMap)) return 0;
+    if (!(colName in columnMap)) return { score: 0, coverage: 0 };
     const value = row[columnMap[colName]].trim();
-    if (!matchesFilter(value, condition)) return 0;
+    if (!matchesFilter(value, condition)) return { score: 0, coverage: 0 };
+
     if (typeof condition === 'object' && condition !== null && Array.isArray(condition.tokens)) {
-      score += countTokenMatches(value, condition.tokens);
+      // Exclusion check: any matching exclude token disqualifies this leaf
+      if (Array.isArray(condition.exclude) && countTokenMatches(value, condition.exclude) > 0) {
+        return { score: 0, coverage: 0 };
+      }
+      const { count, matchedChars: mc, descLength: dl } = matchTokens(value, condition.tokens);
+      score += count;
+      matchedChars += mc;
+      descLength = Math.max(descLength, dl);
     } else {
       score += 1;
     }
   }
-  return score;
+
+  const coverage = descLength > 0 ? matchedChars / descLength : 0;
+  return { score, coverage };
 }
 
-// Assign category by scoring all leaves globally and picking the highest score
-function assignCategory(row, columnMap, leaves) {
+// Assign category by scoring all leaves globally and picking the highest score.
+// Ties broken by coverage ratio (matched token chars / description length).
+// Returns null if bestScore < minScore.
+function assignCategory(row, columnMap, leaves, minScore) {
   let bestPath = null;
   let bestScore = 0;
+  let bestCoverage = 0;
+
   for (const leaf of leaves) {
-    const score = scoreLeaf(row, columnMap, leaf.filters);
-    if (score > bestScore) {
+    const { score, coverage } = scoreLeaf(row, columnMap, leaf.filters);
+    if (score > bestScore || (score > 0 && score === bestScore && coverage > bestCoverage)) {
       bestScore = score;
+      bestCoverage = coverage;
       bestPath = leaf.path;
     }
   }
-  return bestPath;
+
+  return bestScore >= minScore ? bestPath : null;
 }
 
 // Check if row matches a forced category
@@ -145,7 +167,7 @@ function checkForcedCategory(row, columnMap, forcedList) {
   if (!forcedList || forcedList.length === 0) return null;
   if (!('description' in columnMap)) return null;
   
-  const descriptionValue = row[columnMap['description']] ? row[columnMap['description']].trim().toLowerCase() : '';
+  const descriptionValue = row[columnMap['description']] ? normalizeStr(row[columnMap['description']].trim()) : '';
   if (!descriptionValue) return null;
 
   // Score each matching forced entry by coverage: how much of the description the pattern covers
@@ -155,8 +177,13 @@ function checkForcedCategory(row, columnMap, forcedList) {
 
   for (const forced of forcedList) {
     if (!forced.description) continue;
-    const pattern = forced.description.toLowerCase();
+    const pattern = normalizeStr(forced.description);
     if (!descriptionValue.includes(pattern)) continue;
+
+    // Optional exact constraints for disambiguation
+    if (forced.date && ('date' in columnMap) && row[columnMap['date']].trim() !== forced.date) continue;
+    if (forced.amount && ('amount' in columnMap) && row[columnMap['amount']].trim() !== String(forced.amount)) continue;
+    if (forced.currency_code && ('currency_code' in columnMap) && row[columnMap['currency_code']].trim() !== forced.currency_code) continue;
 
     const score = pattern.length / descriptionValue.length;
     if (score > bestScore) {
@@ -182,7 +209,7 @@ try {
     const parts = parseCSVLine(line);
     // Check category patterns first
     const patternLabel = checkForcedCategory(parts, columnMap, categoryPatterns);
-    const label = patternLabel || assignCategory(parts, columnMap, leaves) || defaultLabel;
+    const label = patternLabel || assignCategory(parts, columnMap, leaves, minScore) || defaultLabel;
     tally[label] = (tally[label] || 0) + 1;
     outputLines.push(line + ',' + label);
   }

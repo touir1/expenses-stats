@@ -49,25 +49,18 @@
 
 Category-level tokens are auto-generated at runtime from all subcategory token lists.
 
-### `category-patterns.config.json`
-
-```json
-{
-  "patterns": [
-    { "regex": "loyer.*courbevoie", "category": "housing/rent" }
-  ]
-}
-```
-
 ### `forced-categories.config.json`
 
 ```json
 {
-  "forcedCategories": [
-    { "hash": "a3f2...", "category": "car/insurance" }
+  "forced": [
+    { "description": "maman", "category": "gifts/misc" },
+    { "description": "huile d'olive", "category": "food/groceries" }
   ]
 }
 ```
+
+Description-substring matching, longest match wins. Used for names, multi-word phrases, and tokens that are too ambiguous for the global scoring system.
 
 ### `filters.config.json`
 
@@ -112,6 +105,6 @@ Date fields (`date` column) use `DD/MM/YYYY` string comparison via `toComparable
 
 ## SQLite schema (`data/database/depenses.db`)
 
-Tables: `expenses`, `categories`, `category_filters`, `category_filter_tokens`, `category_patterns`, `forced_categorizations`, `conversion_rates`
+Tables: `expenses`, `categories`, `category_filters`, `category_filter_tokens`, `category_patterns`, `conversion_rates`
 
 Key index: `idx_conversion_rates_lookup ON conversion_rates (base, quote, date)` — used for nearest-prior-date rate lookup.

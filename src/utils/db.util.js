@@ -21,7 +21,7 @@ function initializeDatabase(db, { dropAll = false } = {}) {
         db.run('DROP TABLE IF EXISTS category_filter_tokens', () => {});
         db.run('DROP TABLE IF EXISTS category_filters', () => {});
         db.run('DROP TABLE IF EXISTS category_patterns', () => {});
-        db.run('DROP TABLE IF EXISTS forced_categorizations', () => {});
+        db.run('DROP TABLE IF EXISTS forced_categorizations', () => {}); // legacy, kept for safe drop
         db.run('DROP TABLE IF EXISTS categories', () => {});
         db.run('DROP TABLE IF EXISTS conversion_rates', () => {});
       }
@@ -107,21 +107,14 @@ function initializeDatabase(db, { dropAll = false } = {}) {
       db.run(`
         CREATE TABLE IF NOT EXISTS category_patterns (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
-          description_pattern TEXT NOT NULL UNIQUE,
+          description_pattern TEXT NOT NULL,
+          date TEXT,
+          amount REAL,
+          currency TEXT,
           category_id INTEGER NOT NULL,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
-        )
-      `, (err) => { if (err) reject(err); });
-
-      db.run(`
-        CREATE TABLE IF NOT EXISTS forced_categorizations (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          hash TEXT NOT NULL,
-          date TEXT NOT NULL,
-          category_label TEXT NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE(hash, date)
+          FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE,
+          UNIQUE(description_pattern, date, amount, currency)
         )
       `, (err) => { if (err) reject(err); });
 
@@ -133,8 +126,7 @@ function initializeDatabase(db, { dropAll = false } = {}) {
       db.run(`CREATE INDEX IF NOT EXISTS idx_category_patterns_category ON category_patterns (category_id)`
         , (err) => { if (err) reject(err); });
 
-      // Index for fast lookups of forced categorizations by hash and date
-      db.run(`CREATE INDEX IF NOT EXISTS idx_forced_categorizations_lookup ON forced_categorizations (hash, date)`
+      db.run(`CREATE INDEX IF NOT EXISTS idx_category_patterns_description ON category_patterns (description_pattern)`
         , (err) => { if (err) reject(err); else resolve(); });
     });
   });
@@ -400,75 +392,6 @@ function removeFilterToken(db, filterId, token) {
   });
 }
 
-// Load forced categorizations into DB.
-// forcedList: array of { date, description, currency, amount, category }
-// Hash is computed from description, currency, amount; combined with date for matching.
-function loadForcedCategorizationsIntoDb(db, forcedList) {
-  return new Promise((resolve, reject) => {
-    if (forcedList.length === 0) { resolve(); return; }
-    db.serialize(() => {
-      db.run('BEGIN TRANSACTION');
-      const stmt = db.prepare(
-        'INSERT OR REPLACE INTO forced_categorizations (hash, date, category_label) VALUES (?, ?, ?)'
-      );
-      for (const item of forcedList) {
-        // Compute hash from description, currency, amount
-        const currency = item.currency ? String(item.currency).toUpperCase() : 'TND';
-        const amount = parseFloat(item.amount);
-        const hash = hashExpense(item.description, currency, amount);
-        stmt.run([hash, item.date, item.category]);
-      }
-      stmt.finalize();
-      db.run('COMMIT', (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-  });
-}
-
-// Check if a specific row (identified by hash and date) has a forced category.
-// Hash should be computed from description, currency, amount.
-// Returns the forced category label or null if no match.
-function getForcedCategoryFromDb(db, hash, date) {
-  return new Promise((resolve, reject) => {
-    if (!hash || !date) {
-      resolve(null);
-      return;
-    }
-
-    // Find exact match with hash and date
-    db.get(
-      `SELECT category_label
-       FROM forced_categorizations
-       WHERE hash = ? AND date = ?
-       LIMIT 1`,
-      [hash, date],
-      (err, row) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve(row ? row.category_label : null);
-      }
-    );
-  });
-}
-
-// Get all forced categorizations as a list (for inspection/debugging)
-function getAllForcedCategorizationsFromDb(db) {
-  return new Promise((resolve, reject) => {
-    db.all(
-      `SELECT hash, date, category_label as category
-       FROM forced_categorizations
-       ORDER BY date DESC, hash`,
-      (err, rows) => {
-        if (err) reject(err);
-        else resolve(rows || []);
-      }
-    );
-  });
-}
 
 
 // Bulk-load conversion rates into DB using a transaction.
@@ -533,8 +456,8 @@ function loadCategoryPatternsIntoDb(db, patterns) {
           return;
         }
         db.run(
-          'INSERT OR REPLACE INTO category_patterns (description_pattern, category_id) VALUES (?, ?)',
-          [p.description, row.id],
+          'INSERT OR REPLACE INTO category_patterns (description_pattern, date, amount, currency, category_id) VALUES (?, ?, ?, ?, ?)',
+          [p.description, p.date || null, p.amount != null ? parseFloat(p.amount) : null, p.currency ? p.currency.toUpperCase() : null, row.id],
           (err2) => {
             if (err2) console.error(`Error inserting pattern "${p.description}":`, err2.message);
             if (++processed === patterns.length) resolve();
@@ -550,7 +473,7 @@ function loadCategoryPatternsIntoDb(db, patterns) {
 function getCategoryPatternsFromDb(db) {
   return new Promise((resolve, reject) => {
     db.all(
-      `SELECT cp.id, cp.description_pattern, c.label AS category_label
+      `SELECT cp.id, cp.description_pattern, cp.date, cp.amount, cp.currency, c.label AS category_label
        FROM category_patterns cp
        JOIN categories c ON c.id = cp.category_id
        ORDER BY length(cp.description_pattern) DESC`,
@@ -662,9 +585,6 @@ module.exports = {
   getConversionRatesMapFromDb,
   loadCategoryPatternsIntoDb,
   getCategoryPatternsFromDb,
-  loadForcedCategorizationsIntoDb,
-  getForcedCategoryFromDb,
-  getAllForcedCategorizationsFromDb,
   getAllCategoriesAsMap,
   getAllExpensesAsMap,
   getExpensesFromDb,

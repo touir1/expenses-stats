@@ -7,8 +7,7 @@ Node.js expense analysis tool: parse text → CSV → label categories → filte
 ```
 config/
   categories.config.json       # Hierarchical category definitions (token-based matching)
-  category-patterns.config.json# Regex/pattern overrides for labeling
-  forced-categories.config.json# Explicit hash→category overrides
+  forced-categories.config.json# Description-substring overrides (names, phrases, ambiguous tokens)
   filters.config.json          # Named filter registry (keys used by --filter)
   filters/                     # Individual filter definition files (generated at runtime)
 data/
@@ -17,7 +16,7 @@ data/
   processed/depenses-labeled.csv # After label.script.js
   processed/conversion-rates.csv # EUR↔TND rates by date
   database/depenses.db         # SQLite (optional DB mode)
-docs/                          # Extended docs (FILTER_GUIDE, FORCED_CATEGORIES, data-schema, SETUP_SUMMARY)
+docs/                          # Extended docs (FILTER_GUIDE, FORCED_CATEGORIES, data-schema)
 output/                        # Stats JSON + filtered CSVs (gitignored)
 src/
   scripts/                     # Runnable entry points (see below)
@@ -38,6 +37,7 @@ src/
 | `update-rates.script.js` | Fetches EUR↔TND rates from frankfurter.dev API |
 | `category-details.script.js` | Drill-down stats for a specific category |
 | `list-other.script.js` | Lists rows with `category = "other"` (for finding new tokens) |
+| `query.script.js` | Filter and display rows interactively (CSV or DB source) |
 
 ## Utils (`src/utils/`)
 
@@ -68,6 +68,8 @@ npm run stats                       # Stats only
 npm run list:other                  # Inspect uncategorized rows
 npm run update-rates                # Refresh conversion-rates.csv
 npm run db:insert                   # Load into SQLite
+npm run query                       # Filter and display rows (CSV mode by default)
+npm run query -- --database --currency TND --begin-date "01/01/2025"
 ```
 
 ## Key conventions
@@ -77,7 +79,7 @@ npm run db:insert                   # Load into SQLite
 - **Filter flow**: `filters.config.json` → pipeline reads definition → writes temp file to `config/filters/filter-{key}.json` → passes to `filter.script.js`
 - **Category matching**: token-based, word-boundary, accent-insensitive, case-insensitive (`text.util.js`)
 - **Hashing**: each expense gets a SHA-based hash from (description, currency, amount) for dedup in DB mode
-- **DB mode**: enabled with `--use-database`; filters and date ranges applied in SQL instead of CSV pipeline
+- **DB mode**: enabled with `--use-database` in stats/pipeline, or `--database` / `--database-file` in `query.script.js`
 
 ## CSV column schema
 

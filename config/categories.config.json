@@ -8,16 +8,16 @@
         { "name": "electrical","filters": { "description": { "tokens": ["electricien", "calculateur", "tabdil", "ecu", "egr", "relai", "fnar", "ambouba", "demarreur", "fusible", "batterie"] } } },
         { "name": "mechanic",  "filters": { "description": { "tokens": ["mecanicien", "tasli7", "main d'oeuvre"] } } },
         { "name": "suspension","filters": { "description": { "tokens": ["amortisseur", "rotule", "bollar", "3ajjel", "naf5an", "equilibrage", "thermostat", "couroi", "parallelisme", "parallélisme"] } } },
-        { "name": "engine",    "filters": { "description": { "tokens": ["moteur", "echappement", "radiateur", "ventilo", "huile", "filtre", "pompe", "purge", "produit", "9taya", "bougies", "batterie", "support", "kmelet", "duride", "échappement", "échappment", "joint soupape", "oil seal", "kit chaine", "kit rubans", "vidange", "ventilateur"] } } },
+        { "name": "engine",    "filters": { "description": { "tokens": ["moteur", "echappement", "radiateur", "ventilo", "huile", "filtre", "pompe", "purge", "produit", "9taya", "bougies", "batterie", "support", "kmelet", "duride", "échappement", "échappment", "joint soupape", "oil seal", "kit chaine", "kit rubans", "vidange", "ventilateur"], "exclude": ["olive", "tournesol", "vegetale", "essentielle", "sada9a"] } } },
         { "name": "fuel",      "filters": { "description": { "tokens": ["essence", "escence", "gasoil", "carburant", "fuel", "ezcence"] } } },
-        { "name": "misc",      "filters": { "description": { "tokens": ["parking", "blaka", "attache", "toit", "feu", "plaque", "diagnostic", "garage", "3ajlet", "tyre", "signe", "80", "bakou", "karhba", "cadron", "cadran", "comodo", "zommara", "soufflet crémaillères", "péage", "peage"] } } }
+        { "name": "misc",      "filters": { "description": { "tokens": ["parking", "blaka", "attache", "toit", "feu", "plaque", "diagnostic", "garage", "3ajlet", "tyre", "signe", "80", "bakou", "karhba", "cadron", "cadran", "comodo", "zommara", "soufflet crémaillères", "péage", "peage", "retroviseur"] } } }
       ]
     },
     {
       "name": "transport",
       "subcategories": [
         { "name": "flight",    "filters": { "description": { "tokens": ["vol", "avion", "transavia", "tunisair", "nouvelair", "ryanair", "easyjet"] } } },
-        { "name": "train_bus", "filters": { "description": { "tokens": ["flixbus", "train", "rer", "ratp", "transport", "24", "hours", "stunden", "day", "pass", "navigo", "reservation", "place", "velib"] } } },
+        { "name": "train_bus", "filters": { "description": { "tokens": ["flixbus", "train", "rer", "ratp", "transport", "pass", "navigo", "reservation", "velib"] } } },
         { "name": "taxi_ride", "filters": { "description": { "tokens": ["bolt", "taxi", "uber"] } } },
         { "name": "fuel",      "filters": { "description": { "tokens": ["essence", "escence", "gasoil"] } } }
       ]
@@ -25,8 +25,8 @@
     {
       "name": "housing",
       "subcategories": [
-        { "name": "rent",      "filters": { "description": { "tokens": ["loyer"] } } },
-        { "name": "telecom",   "filters": { "description": { "tokens": ["free", "mobile", "fibre", "sfr", "telecom", "facture", "internet", "roaming", "cartes", "carte", "sim"] } } },
+        { "name": "rent",      "filters": { "description": { "tokens": ["loyer", "kré", "thmad"] } } },
+        { "name": "telecom",   "filters": { "description": { "tokens": ["free", "mobile", "fibre", "sfr", "telecom", "facture", "internet", "roaming", "cartes", "carte", "sim", "karta", "orange", "recharge"] } } },
         { "name": "insurance", "filters": { "description": { "tokens": ["assurance", "habitat", "habitation", "avanssur", "home", "logement"] } } },
         { "name": "utilities", "filters": { "description": { "tokens": ["electricite", "edf", "gaz", "eau", "internet", "charges"] } } }
       ]
@@ -34,10 +34,10 @@
     {
       "name": "food",
       "subcategories": [
-        { "name": "cafe",      "filters": { "description": { "tokens": ["cafe", "coffee", "coffes", "coffees", "9ahwa", "cappuccino", "latte", "espresso", "jus", "boisson", "smoothie", "gazouz", "gazouza", "the", "frappuccino", "frappuchino", "coca", "cidre", "orangina", "sprite", "biere", "vin", "alcool", "dabbouza", "mojito", "virgin", "ginger", "hot chocolate", "hot coco", "chocolate chaud", "water", "limonade", "orange juice", "ftoor", "formule", "petit dej", "ptit dej", "prit dej", "me", "spezi"] } } },
+        { "name": "cafe",      "filters": { "description": { "tokens": ["cafe", "coffee", "coffes", "coffees", "9ahwa", "cappuccino", "latte", "espresso", "jus", "boisson", "smoothie", "gazouz", "gazouza", "the", "frappuccino", "frappuchino", "coca", "cidre", "orangina", "sprite", "biere", "vin", "alcool", "dabbouza", "mojito", "virgin", "ginger", "hot chocolate", "hot coco", "chocolate chaud", "water", "limonade", "orange juice", "ftoor", "formule", "petit dej", "ptit dej", "prit dej", "spezi", "mé"] } } },
         { "name": "restaurant","filters": { "description": { "tokens": ["restaurant", "resto", "pizza", "burger", "sandwich", "sandwi", "tacos", "mcdo", "kfc", "kebab", "sushi", "crepe", "ftour", "diner", "dejeuner", "repas", "durum", "mekla", "tandoori", "tandoor", "langos", "grillades", "mezze", "buffet", "chorba", "lablebi", "ma9rouna", "omelette", "djej", "frites", "chkobba", "7okka", "pasta", "escalope", "merguez", "panini", "pourboire", "pourboir", "ma9loub"] } } },
-        { "name": "bakery",    "filters": { "description": { "tokens": ["baguette", "baguettes", "pain", "croissant", "croissants", "gateau", "cake", "cookie", "cookies", "biscuit", "patisserie", "7low", "9loub", "eclair", "madeleine", "madeleines", "chouquettes", "tarte", "cheesecake", "madalina", "zouza", "5obz", "mlewi", "chapati", "tortilla", "apfelstrudel", "strudel", "donuts", "beignet", "galette", "muffin", "new york rolls", "new york roll", "dabouna", "tabouna", "doura bellouz", "mini beignets", "mille feuilles", "mille-feuilles", "spot", "brownies", "sablet"] } } },
-        { "name": "sweets",    "filters": { "description": { "tokens": ["chocolat", "glace", "dessert", "bonbon", "m3ach3ech", "9athyet", "bachkoutou", "babybel", "kinder", "lindt", "flan", "mille-feuille", "palmier", "donut", "gingerbread", "tiramisu", "macaron", "brownie", "chips", "gourmandise", "m&m", "m&ms", "candy", "chleka", "chewing gum", "lollipop", "popcorn"] } } },
+        { "name": "bakery",    "filters": { "description": { "tokens": ["baguette", "baguettes", "pain", "croissant", "croissants", "gateau", "cake", "cookie", "cookies", "biscuit", "patisserie", "7low", "9loub", "eclair", "madeleine", "madeleines", "chouquettes", "tarte", "cheesecake", "madalina", "zouza", "5obz", "mlewi", "chapati", "tortilla", "apfelstrudel", "strudel", "donuts", "beignet", "galette", "muffin", "new york rolls", "new york roll", "dabouna", "tabouna", "doura bellouz", "mini beignets", "mille feuilles", "mille-feuilles", "spot", "brownies", "sablet", "oranais"] } } },
+        { "name": "sweets",    "filters": { "description": { "tokens": ["chocolat", "glace", "dessert", "bonbon", "m3ach3ech", "9athyet", "bachkoutou", "babybel", "kinder", "lindt", "flan", "mille-feuille", "palmier", "donut", "gingerbread", "tiramisu", "macaron", "brownie", "chips", "m&m", "m&ms", "candy", "chleka", "chewing gum", "lollipop", "popcorn"] } } },
         { "name": "groceries", "filters": { "description": { "tokens": ["hpc", "diag", "leclerc", "auchan", "carrefour", "lidl", "monoprix", "primeur", "beurre", "lait", "7lib", "oeuf", "oeufs", "3dham", "3tham", "farine", "riz", "couscous", "semoule", "sucre", "sel", "confiture", "miel", "sauce", "thon", "sardine", "patate", "batata", "banane", "bananes", "pomme", "tomate", "courgette", "epinard", "citron", "citrons", "ail", "oignon", "ognion", "ognions", "oignons", "champignon", "pois", "carotte", "aneth", "persil", "percil", "menthe", "creme", "crème fraiche", "crème fraîche", "viande", "poulet", "poisson", "k3ab", "jben", "fromage", "mascarpone", "legume", "fruit", "ketchup", "mayo", "mayonnaise", "poivre", "harissa", "tenthabelli", "rayeb", "yaourt", "saucisse", "penne", "carbonara", "bolognaise", "chkara", "9athia", "9athya", "pates", "nouilles", "foie", "veau", "gezouz", "falfoul", "garniture", "geant", "herbe province", "kabbar", "rochefort", "roquefort", "food", "vanille", "yahourt", "vinaigre", "magasin", "meklet", "madalina"] } } }
       ]
     },
@@ -47,7 +47,7 @@
         { "name": "pharmacy",  "filters": { "description": { "tokens": ["pharmacie", "medicament", "ordonnance", "dweyet", "dwe", "cytol", "branchite"] } } },
         { "name": "dental",    "filters": { "description": { "tokens": ["dentiste", "dentaire", "radio", "brosse", "dents", "dentifrice", "detartrage"] } } },
         { "name": "medical",   "filters": { "description": { "tokens": ["medecin", "docteur", "tbib", "clinique", "hopital", "chirurgie", "analyse", "doliprane", "dermatologue", "infirmerie", "trousse secours"] } } },
-        { "name": "beauty",    "filters": { "description": { "tokens": ["gel", "douche", "savon", "shampooing", "champoing", "serum", "creme", "parfum", "deodorant", "deo", "stick", "mousse", "etiaxil", "produit", "ch3ar", "haben", "jabden", "apres", "proteine", "lisseuse", "visage", "facial", "pince", "pinces", "lames", "q tips", "batonnets", "tondeuse"] } } }
+        { "name": "beauty",    "filters": { "description": { "tokens": ["gel", "douche", "savon", "shampooing", "champoing", "serum", "creme", "parfum", "deodorant", "deo", "stick", "mousse", "etiaxil", "produit", "ch3ar", "haben", "jabden", "apres", "proteine", "lisseuse", "visage", "facial", "pince", "pinces", "lames", "q tips", "batonnets"] } } }
       ]
     },
     {
@@ -63,7 +63,7 @@
     {
       "name": "entertainment",
       "subcategories": [
-        { "name": "games",     "filters": { "description": { "tokens": ["steam", "jeu", "jeux", "game", "assassin", "battlefield", "binding", "isaac", "resident", "evil", "dark", "souls", "crash", "bandicoot", "devil", "may", "cry", "hades", "high", "life", "darksiders", "dishonored", "elderscroll", "skyrim", "persia", "tropico", "undermine", "it", "takes", "two", "shadow", "uno", "rami", "hogwarts", "legacy", "witcher"] } } },
+        { "name": "games",     "filters": { "description": { "tokens": ["steam", "jeu", "jeux", "game", "assassin", "battlefield", "binding", "isaac", "resident", "souls", "bandicoot", "devil", "hades", "darksiders", "dishonored", "elderscroll", "skyrim", "persia", "tropico", "undermine", "uno", "rami", "hogwarts", "witcher", "mordor"] } } },
         { "name": "events",    "filters": { "description": { "tokens": ["cinema", "billet", "concert", "musee", "spectacle", "aquarium", "opera", "candlelight", "museum", "zoo", "access", "lindt", "spy", "orsay", "asiatique", "team-building", "radio", "yeddi", "escape", "room", "guitar", "cordes", "instrument", "music", "heidelberg", "castle", "louvre", "ticket", "tourism"] } } }
       ]
     },
@@ -91,11 +91,11 @@
       "name": "home",
       "subcategories": [
         { "name": "furniture", "filters": { "description": { "tokens": ["meuble", "etagere", "ikea", "rideau", "coussin", "tapis", "cadre", "miroir", "chaise", "bureau", "table", "lit", "armoire", "valise", "valises", "sac", "sacs", "sac de voyage", "sac a dos", "bagage", "bagages", "luggage", "lampe ceramique", "lampe céramique", "sandou9 sbabet", "tableau"] } } },
-        { "name": "appliances","filters": { "description": { "tokens": ["lave-linge", "machine", "laver", "aspirateur", "fer", "repasser", "friteuse", "grille-pain", "appwash", "app wash", "laverie", "seche", "secage", "séchage"] } } },
-        { "name": "kitchen",   "filters": { "description": { "tokens": ["casserole", "koujina", "cuisine", "poele", "poelle", "vaisselle", "serviette", "planche", "spatula", "coupe", "ongles", "set", "brosse", "bac", "bacs", "aluminium", "golbets", "goblets", "plastic cups", "kes lavabo", "tirroirs", "testa9ter ma3oun"] } } },
-        { "name": "cleaning",  "filters": { "description": { "tokens": ["brosse", "eponge", "eponges", "chiffon", "balai", "serpilliere", "seau", "javel", "nettoyant", "savon", "liquide", "produit", "adoucissant", "mousse", "gel", "bicarbonate", "briquets", "diffuseur", "air", "fresh", "filtre", "chemin", "chimney", "spray", "papier", "cotton", "9ton", "mnechef", "dabouzet toilette", "toilet bottle", "fritox", "pesticide", "induction diffuser", "msal7a", "raclette"] } } },
-        { "name": "diy",       "filters": { "description": { "tokens": ["leroy", "merlin", "fixe", "attache", "colle", "vis", "chevilles", "clef", "cle", "tournevis", "marteau", "clou", "outil", "planche", "support", "rangement", "bloc-notes", "crayon", "stylo", "agrafeuse", "ciseaux", "cutter", "ficelle", "ruban", "trab", "ampoule", "ampoules", "action", "crochet", "crochets", "bâtonnet", "bâton", "barreya", "gomme", "eraser", "claés allen", "clés allen", "crayons", "sachet", "sachets", "multifiche", "tube led", "yed msal7a", "tuyau toilette"] } } },
-        { "name": "textiles",  "filters": { "description": { "tokens": ["drap", "couette", "taie", "housse", "rideau", "tapis", "serviette", "torchon", "plaid", "cape", "gilet", "paillasson"] } } }
+        { "name": "appliances","filters": { "description": { "tokens": ["lave-linge", "machine", "laver", "aspirateur", "fer", "repasser", "friteuse", "grille-pain", "appwash", "app wash", "laverie", "seche", "secage", "séchage", "pese-personne"] } } },
+        { "name": "kitchen",   "filters": { "description": { "tokens": ["casserole", "koujina", "cuisine", "poele", "poelle", "vaisselle", "serviette", "planche", "spatula", "coupe", "ongles", "brosse", "bac", "bacs", "aluminium", "golbets", "goblets", "plastic cups", "kes lavabo", "tirroirs", "testa9ter ma3oun", "sous-verre", "sous-verres"] } } },
+        { "name": "cleaning",  "filters": { "description": { "tokens": ["brosse", "eponge", "eponges", "chiffon", "balai", "serpilliere", "seau", "javel", "nettoyant", "savon", "liquide", "produit", "adoucissant", "mousse", "gel", "bicarbonate", "briquets", "diffuseur", "filtre", "air fresh", "chemin", "chimney", "spray", "papier", "cotton", "9ton", "mnechef", "dabouzet toilette", "toilet bottle", "fritox", "pesticide", "induction diffuser", "msal7a", "raclette"] } } },
+        { "name": "diy",       "filters": { "description": { "tokens": ["leroy", "merlin", "fixe", "attache", "colle", "vis", "chevilles", "clef", "cle", "tournevis", "marteau", "clou", "outil", "planche", "support", "rangement", "bloc-notes", "crayon", "stylo", "agrafeuse", "ciseaux", "cutter", "ficelle", "ruban", "trab", "ampoule", "ampoules", "action", "crochet", "crochets", "bâtonnet", "bâton", "barreya", "gomme", "eraser", "claés allen", "clés allen", "crayons", "sachet", "sachets", "multifiche", "tube led", "yed msal7a", "tuyau toilette", "tiroirs", "regle", "me3le9", "skotch", "sticker", "stickers", "prise triple"] } } },
+        { "name": "textiles",  "filters": { "description": { "tokens": ["drap", "couette", "taie", "housse", "rideau", "tapis", "serviette", "torchon", "plaid", "cape", "gilet", "paillasson", "sarf"] } } }
       ]
     },
     {
@@ -104,8 +104,8 @@
         { "name": "administrative", "filters": { "description": { "tokens": ["passeport", "8lef", "baladeya", "notaire", "administratif", "certificat", "copie", "declaration", "devise", "badge", "mefte7", "copies", "visa", "signature", "diwena", "border police"] } } },
         { "name": "financial", "filters": { "description": { "tokens": ["frais", "commission", "virement", "moneygram", "boursorama", "prelevement", "transfer", "paiement", "compte", "taskir", "convertie", "convert"] } } },
         { "name": "utilities", "filters": { "description": { "tokens": ["facture", "energie", "energies", "cotisation", "total"] } } },
-        { "name": "postal", "filters": { "description": { "tokens": ["la", "poste", "timbre", "envoie", "envoi", "lettre", "express", "enveloppe", "envelope"] } } },
-        { "name": "services", "filters": { "description": { "tokens": ["pressing", "lavage", "femme", "menage", "coiffeur", "salon", "service", "reparation", "tuning", "serrurier", "photocopie", "imprimerie", "fix charka", "fixing necklace", "imprim docs impots", "printing taxes"] } } },
+        { "name": "postal", "filters": { "description": { "tokens": ["poste", "timbre", "envoie", "envoi", "lettre", "express", "enveloppe", "envelope"] } } },
+        { "name": "services", "filters": { "description": { "tokens": ["pressing", "lavage", "femme", "menage", "coiffeur", "salon", "service", "reparation", "tuning", "serrurier", "photocopie", "photocopies", "imprimerie", "fix charka", "fixing necklace", "imprim docs impots", "printing taxes"] } } },
         { "name": "misc", "filters": { "description": { "tokens": ["cinema", "parking", "permis", "tsawer", "tourist tax", "tip", "salle7 tel", "madhmoun"] } } }
       ]
     },
@@ -130,6 +130,10 @@
         { "name": "transfers", "filters": { "description": { "tokens": [] } } },
         { "name": "lending", "filters": { "description": { "tokens": [] } } }
       ]
+    },
+    {
+      "name": "other",
+      "subcategories": []
     }
   ]
 }

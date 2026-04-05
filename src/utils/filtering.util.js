@@ -52,6 +52,8 @@ function matchesFilter(value, condition, columnName) {
       case 'tokens':
         if (!Array.isArray(operand) || countTokenMatches(String(value), operand) === 0) return false;
         break;
+      case 'exclude':
+        break; // handled in scoreLeaf, not a filter gate
       case 'in':
         if (!Array.isArray(operand) || !operand.map(String).includes(String(value))) return false;
         break;

@@ -1,31 +1,16 @@
 const path = require('path');
 const { readCSV, loadCategories, loadCategoryPatterns, fileExists } = require('../utils/data.util');
 const { openDatabase, initializeDatabase, loadCategoriesIntoDb, loadCategoryPatternsIntoDb,
-        loadForcedCategorizationsIntoDb, loadConversionRatesIntoDb, getCategoryIdByLabel, getExpenseCount, 
-        insertExpense, insertExpensesBatch, getRowCount, getAllCategoriesAsMap, getAllExpensesAsMap, 
-        hashExpense } = require('../utils/db.util');
+        loadConversionRatesIntoDb, insertExpensesBatch, getRowCount,
+        getAllCategoriesAsMap, getAllExpensesAsMap } = require('../utils/db.util');
 const { parseArgs } = require('../utils/cli-args.util');
 const { getDefaultPaths, resolvePath, ensureDir } = require('../utils/path-resolver.util');
 const { logSuccess, logError, logWarning, logInfo } = require('../utils/console-output.util');
-
-// Helper function to load forced categories from JSON file
-function loadForcedCategories(filePath) {
-  const fs = require('fs');
-  try {
-    const content = fs.readFileSync(filePath, 'utf8');
-    const data = JSON.parse(content);
-    return (data.forced && Array.isArray(data.forced)) ? data.forced : [];
-  } catch (err) {
-    console.warn(`Warning: Could not load forced categories from ${filePath}:`, err.message);
-    return [];
-  }
-}
 
 // Parse command-line arguments
 const optionDefs = [
   { flag: '--input-file', param: true, default: null },
   { flag: '--categories-file', param: true, default: null },
-  { flag: '--category-patterns-file', param: true, default: null },
   { flag: '--forced-categories-file', param: true, default: null },
   { flag: '--conversion-rates-file', param: true, default: null },
   { flag: '--database', param: true, default: null },
@@ -41,7 +26,6 @@ Usage: node db-insert.script.js [options]
 Options:
   --input-file <path>              Input labeled CSV file (default: data/processed/depenses-labeled.csv)
   --categories-file <path>         Categories definition file (default: config/categories.config.json)
-  --category-patterns-file <path>  Category patterns file (default: config/category-patterns.config.json)
   --forced-categories-file <path>  Forced categories file (default: config/forced-categories.config.json)
   --conversion-rates-file <path>   Conversion rates CSV file (default: data/processed/conversion-rates.csv)
   --database <path>                SQLite database file (default: data/database/depenses.db)
@@ -59,7 +43,6 @@ Examples:
 const defaults = getDefaultPaths();
 const inputFile = resolvePath(parsedArgs['input-file'], defaults.inputFile);
 const categoriesFile = resolvePath(parsedArgs['categories-file'], defaults.categoriesFile);
-const categoryPatternsFile = resolvePath(parsedArgs['category-patterns-file'], defaults.categoryPatternsFile);
 const forcedCategoriesFile = resolvePath(parsedArgs['forced-categories-file'], defaults.forcedCategoriesFile);
 const conversionRatesFile = resolvePath(parsedArgs['conversion-rates-file'], defaults.conversionRatesFile);
 const databaseFile = resolvePath(parsedArgs['database'], defaults.databaseFile);
@@ -92,18 +75,18 @@ async function main() {
       logSuccess('Categories already loaded', `${catCount} entries, skipping`);
     }
 
-    // Load category patterns — only if table is empty or --delete-all
+    // Load forced category patterns — only if table is empty or --reset-database
     const patternCount = await getRowCount(db, 'category_patterns');
     if (deleteAll || patternCount === 0) {
-      if (fileExists(categoryPatternsFile)) {
-        const patterns = loadCategoryPatterns(categoryPatternsFile);
+      if (fileExists(forcedCategoriesFile)) {
+        const patterns = loadCategoryPatterns(forcedCategoriesFile);
         await loadCategoryPatternsIntoDb(db, patterns);
-        logSuccess('Category patterns loaded', `${patterns.length} entries`);
+        logSuccess('Forced category patterns loaded', `${patterns.length} entries`);
       } else {
-        logWarning('Category patterns file not found, skipping');
+        logWarning('Forced categories file not found, skipping');
       }
     } else {
-      logSuccess('Category patterns already loaded', `${patternCount} entries, skipping`);
+      logSuccess('Forced category patterns already loaded', `${patternCount} entries, skipping`);
     }
 
     // Load conversion rates — only if table is empty or --delete-all
@@ -118,20 +101,6 @@ async function main() {
       }
     } else {
       logSuccess('Conversion rates already loaded', `${rateCount} entries, skipping`);
-    }
-
-    // Load forced categorizations — only if table is empty or --delete-all
-    const forcedCount = await getRowCount(db, 'forced_categorizations');
-    if (deleteAll || forcedCount === 0) {
-      if (fileExists(forcedCategoriesFile)) {
-        const forcedList = loadForcedCategories(forcedCategoriesFile);
-        await loadForcedCategorizationsIntoDb(db, forcedList);
-        logSuccess('Forced categorizations loaded', `${forcedList.length} entries`);
-      } else {
-        logWarning('Forced categorizations file not found, skipping');
-      }
-    } else {
-      logSuccess('Forced categorizations already loaded', `${forcedCount} entries, skipping`);
     }
 
     // Read CSV

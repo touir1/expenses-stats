@@ -12,16 +12,20 @@ async function main() {
     { flag: '--skip-parsing',  param: false },
     { flag: '--skip-labeling', param: false },
     { flag: '--filter',        param: true,  default: null },
-    { flag: '--use-database',  param: false },
-    { flag: '--database',      param: true,  default: null }
+    { flag: '--use-database',           param: false },
+    { flag: '--database',               param: true,  default: null },
+    { flag: '--reset-database',         param: false },
+    { flag: '--reset-database-labels',  param: false }
   ];
 
   const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
-  const skipParsing  = parsedArgs['skip-parsing'];
-  const skipLabeling = parsedArgs['skip-labeling'];
-  const filterKey    = parsedArgs['filter'];
-  const useDatabase  = parsedArgs['use-database'];
-  const databaseArg  = parsedArgs['database'];
+  const skipParsing          = parsedArgs['skip-parsing'];
+  const skipLabeling         = parsedArgs['skip-labeling'];
+  const filterKey            = parsedArgs['filter'];
+  const useDatabase          = parsedArgs['use-database'];
+  const databaseArg          = parsedArgs['database'];
+  const resetDatabase        = parsedArgs['reset-database'];
+  const resetDatabaseLabels  = parsedArgs['reset-database-labels'];
 
   if (showHelp) {
     console.log(`
@@ -46,6 +50,8 @@ Options:
                         Available: car, eur, tnd, high_value, low_value, food, transport
   --use-database        Load data into DB then generate stats from DB (no filter.script.js step)
   --database <path>     SQLite database file (default: data/database/depenses.db)
+  --reset-database        Drop and recreate DB tables before inserting (implies --use-database)
+  --reset-database-labels Drop and recreate DB tables only when labeling ran (noop with --skip-labeling)
   -h, --help           Show this help message
 
 Examples:
@@ -100,10 +106,13 @@ Examples:
 
     if (useDatabase) {
       // Step 3: DB Insert
+      const shouldReset = resetDatabase || (!skipLabeling && resetDatabaseLabels);
+      const dbInsertArgs = ['--input-file', labeledCsv, '--database', databaseFile];
+      if (shouldReset) dbInsertArgs.push('--reset-database');
       await runCommand(
         path.join(__dirname, 'db-insert.script.js'),
-        ['--input-file', labeledCsv, '--database', databaseFile],
-        { description: 'Step 3: Loading labeled data into database' }
+        dbInsertArgs,
+        { description: `Step 3: Loading labeled data into database${shouldReset ? ' (reset)' : ''}` }
       );
 
       // Step 4: Stats from DB (filter applied inside stats.script.js via SQL)

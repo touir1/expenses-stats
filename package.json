@@ -30,7 +30,9 @@
     "update-rates": "node src/scripts/update-rates.script.js",
     "update-rates:help": "node src/scripts/update-rates.script.js --help",
     "db:insert": "node src/scripts/db-insert.script.js",
-    "db:insert:help": "node src/scripts/db-insert.script.js --help"
+    "db:insert:help": "node src/scripts/db-insert.script.js --help",
+    "query": "node src/scripts/query.script.js",
+    "query:help": "node src/scripts/query.script.js --help"
   },
   "keywords": [
     "expenses",
