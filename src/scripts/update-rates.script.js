@@ -78,24 +78,6 @@ function fetchRates(startDate, endDate, base, quote) {
   });
 }
 
-function getMonthDates(startDate, endDate) {
-  // This function is kept for compatibility but not used for batch fetching
-  // The API returns daily rates which we store directly
-  const dates = [];
-  const current = new Date(startDate);
-  const end = new Date(endDate);
-
-  // Get first day of each month for reference only
-  while (current <= end) {
-    const year = current.getFullYear();
-    const month = String(current.getMonth() + 1).padStart(2, '0');
-    dates.push(`${year}-${month}-01`);
-    current.setMonth(current.getMonth() + 1);
-  }
-
-  return dates;
-}
-
 async function main() {
   // Parse command-line arguments
   const optionDefs = [

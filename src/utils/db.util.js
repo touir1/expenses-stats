@@ -288,20 +288,6 @@ function getExpenseCount(db, date, categoryId, amount) {
   });
 }
 
-// Insert a single expense row
-function insertExpense(db, row, categoryId) {
-  return new Promise((resolve, reject) => {
-    db.run(
-      'INSERT INTO expenses (amount, currency_symbol, currency_code, date, description, category_id) VALUES (?, ?, ?, ?, ?, ?)',
-      [parseFloat(row.amount), row.currency_symbol, row.currency_code, row.date, row.description, categoryId],
-      function(err) {
-        if (err) reject(err);
-        else resolve(this.lastID);
-      }
-    );
-  });
-}
-
 // Bulk insert expenses in a single transaction using a prepared statement.
 // Much faster than sequential individual inserts.
 // rows: array of { amount, currency_symbol, currency_code, date, description, category_id }
@@ -579,7 +565,6 @@ module.exports = {
   loadCategoriesIntoDb,
   getCategoryIdByLabel,
   getExpenseCount,
-  insertExpense,
   insertExpensesBatch,
   getRowCount,
   getFilterTokens,

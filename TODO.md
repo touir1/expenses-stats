@@ -14,8 +14,8 @@
 
 ## Dead Code
 
-- [ ] **`update-rates.script.js:77` — `getMonthDates()`**: defined, never called; comment says "kept for compatibility"
-- [ ] **`db.util.js` — `insertExpense()` (singular)**: exported but only `insertExpensesBatch()` is ever used
+- [x] **`update-rates.script.js:77` — `getMonthDates()`**: defined, never called; comment says "kept for compatibility"
+- [x] **`db.util.js` — `insertExpense()` (singular)**: exported but only `insertExpensesBatch()` is ever used
 
 ## Missing Error Handling
 
