@@ -5,6 +5,7 @@ const fs = require('fs');
 const { parseArgs } = require('../utils/cli-args.util');
 const { runCommand } = require('../utils/process-runner.util');
 const { ensureRatesUpdated } = require('../utils/rate-manager.util');
+const { getDefaultPaths } = require('../utils/path-resolver.util');
 
 async function main() {
   // Parse pipeline arguments
@@ -63,6 +64,8 @@ Examples:
     process.exit(0);
   }
 
+  const defaults = getDefaultPaths();
+
   try {
     console.log('╔════════════════════════════════════════════╗');
     console.log('║   EXPENSE ANALYSIS PIPELINE                ║');
@@ -87,10 +90,10 @@ Examples:
       await runCommand(
         path.join(__dirname, 'label.script.js'),
         [
-          '--input-file', path.join(__dirname, '..', '..', 'data', 'processed', 'depenses.csv'),
-          '--output-file', path.join(__dirname, '..', '..', 'data', 'processed', 'depenses-labeled.csv'),
-          '--categories-file', path.join(__dirname, '..', '..', 'config', 'categories.config.json'),
-          '--forced-categories-file', path.join(__dirname, '..', '..', 'config', 'forced-categories.config.json')
+          '--input-file',              defaults.parsedFile,
+          '--output-file',             defaults.inputFile,
+          '--categories-file',         defaults.categoriesFile,
+          '--forced-categories-file',  defaults.forcedCategoriesFile
         ],
         { description: 'Step 2: Labeling expenses with categories' }
       );
@@ -98,11 +101,11 @@ Examples:
       console.log('⊘ Skipping labeling step');
     }
 
-    const labeledCsv  = path.join(__dirname, '..', '..', 'data', 'processed', 'depenses-labeled.csv');
-    const databaseFile = databaseArg || path.join(__dirname, '..', '..', 'data', 'database', 'depenses.db');
+    const labeledCsv      = defaults.inputFile;
+    const databaseFile    = databaseArg || defaults.databaseFile;
     const statsOutputFile = filterKey
-      ? path.join(__dirname, '..', '..', 'output', `depenses-${filterKey}-stats.json`)
-      : path.join(__dirname, '..', '..', 'output', 'depenses-stats.json');
+      ? path.join(defaults.outputDir, `depenses-${filterKey}-stats.json`)
+      : path.join(defaults.outputDir, 'depenses-stats.json');
 
     if (useDatabase) {
       // Step 3: DB Insert
@@ -132,35 +135,36 @@ Examples:
       let inputForStats = labeledCsv;
 
       if (filterKey) {
-        const configPath = path.join(__dirname, '..', '..', 'config', 'filters.config.json');
-        const filterConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+        const filterConfigPath = path.join(defaults.configDir, 'filters.config.json');
+        const filterConfig = JSON.parse(fs.readFileSync(filterConfigPath, 'utf-8'));
         if (!filterConfig.filters[filterKey]) {
           throw new Error(`Unknown filter key: "${filterKey}". Available: ${Object.keys(filterConfig.filters).join(', ')}`);
         }
         const filterDef  = filterConfig.filters[filterKey];
-        const filterFile = path.join(__dirname, '..', '..', 'config', 'filters', `filter-${filterKey}.json`);
+        const filterFile = path.join(defaults.configDir, 'filters', `filter-${filterKey}.json`);
         fs.writeFileSync(filterFile, JSON.stringify(filterDef, null, 2), 'utf-8');
 
+        const filteredCsv = path.join(defaults.outputDir, `depenses-${filterKey}-filtered.csv`);
         await runCommand(
           path.join(__dirname, 'filter.script.js'),
           [
-            '--input-file',  inputForStats,
-            '--output-file', path.join(__dirname, '..', '..', 'output', `depenses-${filterKey}-filtered.csv`),
+            '--input-file',   inputForStats,
+            '--output-file',  filteredCsv,
             '--filters-file', filterFile
           ],
           { description: `Step 3: Filtering with "${filterKey}" filter (${filterDef.description})` }
         );
-        inputForStats = path.join(__dirname, '..', '..', 'output', `depenses-${filterKey}-filtered.csv`);
+        inputForStats = filteredCsv;
       }
 
       // Step 4: Stats from CSV
       await runCommand(
         path.join(__dirname, 'stats.script.js'),
         [
-          '--input-file', inputForStats,
-          '--output', 'both',
-          '--output-file', statsOutputFile,
-          '--conversion-rates', path.join(__dirname, '..', '..', 'data', 'processed', 'conversion-rates.csv')
+          '--input-file',       inputForStats,
+          '--output',           'both',
+          '--output-file',      statsOutputFile,
+          '--conversion-rates', defaults.conversionRatesFile
         ],
         { description: 'Step 4: Generating statistics' }
       );
@@ -172,7 +176,7 @@ Examples:
 
     if (filterKey) {
       console.log(`Filter Applied: ${filterKey}`);
-      console.log(`Output: ${path.join(__dirname, '..', '..', 'output', `depenses-${filterKey}-stats.json`)}`);
+      console.log(`Output: ${path.join(defaults.outputDir, `depenses-${filterKey}-stats.json`)}`);
     }
 
   } catch (err) {

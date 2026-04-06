@@ -41,8 +41,8 @@
 
 ## Architecture
 
-- [ ] **`stats.script.js` duplicates calculation logic**: CSV and DB modes diverge completely but compute the same output structure; a data-source abstraction would let both share one calculation pass
-- [ ] **`pipeline.script.js` hardcodes paths instead of using `getDefaultPaths()`**: lines 84–87 build paths manually (`path.join(__dirname, '..', '..', 'data', ...)`) instead of reading from `path-resolver.util.js`; breaks if paths change
+- [x] **`stats.script.js` duplicates calculation logic**: CSV and DB modes diverge completely but compute the same output structure; a data-source abstraction would let both share one calculation pass
+- [x] **`pipeline.script.js` hardcodes paths instead of using `getDefaultPaths()`**: lines 84–87 build paths manually (`path.join(__dirname, '..', '..', 'data', ...)`) instead of reading from `path-resolver.util.js`; breaks if paths change
 - [x] **`FORCED_CATEGORIES.md` is internally contradictory**: rewrote to match actual implementation — description-substring matching, `category_patterns` table, no hash/date-based lookup
 
 ## Missing Scripts

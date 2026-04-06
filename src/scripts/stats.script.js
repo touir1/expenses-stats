@@ -51,6 +51,79 @@ Examples:
   process.exit(0);
 }
 
+// ─── Data Loaders ─────────────────────────────────────────────────────────────
+
+/**
+ * Load expenses and conversion rates from SQLite database.
+ * @returns {{ expenses: Object[], conversionRates: Object, conversionSource: string }}
+ */
+async function loadFromDatabase({ databaseFile, beginDate, endDate }) {
+  const { openDatabase, getExpensesFromDb, getConversionRatesMapFromDb } = require('../utils/db.util');
+  const db = await openDatabase(databaseFile);
+  try {
+    const rows = await getExpensesFromDb(db, { beginDate, endDate });
+    const conversionRates = await getConversionRatesMapFromDb(db);
+    const expenses = rows.map(r => ({
+      amount:         r.amount,
+      currencySymbol: r.currency_symbol,
+      currencyCode:   r.currency_code,
+      date:           r.date,
+      description:    r.description || '',
+      category:       r.category || null
+    }));
+    return { expenses, conversionRates, conversionSource: 'database' };
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Load expenses and conversion rates from labeled CSV file.
+ * @returns {{ expenses: Object[], conversionRates: Object, conversionSource: string }}
+ */
+function loadFromCSV({ inputFile, conversionRatesFile, beginDate, endDate }) {
+  const conversionRates = fileExists(conversionRatesFile) ? loadConversionRates(conversionRatesFile) : {};
+  const conversionSource = path.basename(conversionRatesFile);
+
+  const { headers, rows: csvRows } = readCSV(inputFile);
+  if (csvRows.length === 0) {
+    logError('CSV file is empty or invalid');
+    process.exit(1);
+  }
+
+  const amountIdx         = headers.indexOf('amount');
+  const currencySymbolIdx = headers.indexOf('currency_symbol');
+  const currencyCodeIdx   = headers.indexOf('currency_code');
+  const dateIdx           = headers.indexOf('date');
+
+  if (amountIdx === -1 || currencySymbolIdx === -1 || currencyCodeIdx === -1 || dateIdx === -1) {
+    logError('CSV header is missing required columns');
+    process.exit(1);
+  }
+
+  let expenses = csvRows.map(row => ({
+    amount:         parseFloat(row['amount']),
+    currencySymbol: row['currency_symbol'],
+    currencyCode:   row['currency_code'],
+    date:           row['date'],
+    description:    row['description'] || '',
+    category:       row['category'] || null
+  }));
+
+  if (beginDate || endDate) {
+    expenses = expenses.filter(exp => {
+      const cmp = toComparableString(exp.date);
+      if (beginDate && cmp < toComparableString(beginDate)) return false;
+      if (endDate   && cmp > toComparableString(endDate))   return false;
+      return true;
+    });
+  }
+
+  return { expenses, conversionRates, conversionSource };
+}
+
+// ─── Named Filter ─────────────────────────────────────────────────────────────
+
 // Apply a named filter definition to an expenses array.
 // filterDef shapes: { category: "car" } or { filters: { currency_code: "EUR" } } or raw filters object.
 function applyNamedFilter(expenses, filterDef) {
@@ -94,72 +167,15 @@ async function main() {
     : path.join(defaults.outputDir, 'depenses-stats.json');
   const outputFile = resolvePath(parsedArgs['output-file'], defaultStatsFile);
 
-  let expenses = [];
-  let conversionRates = {};
-  let conversionSource = '';
+  let expenses, conversionRates, conversionSource;
 
   if (useDatabase) {
-    // --- DATABASE MODE ---
-    const { openDatabase, getExpensesFromDb, getConversionRatesMapFromDb } = require('../utils/db.util');
     const databaseFile = resolvePath(parsedArgs['database'], defaults.databaseFile);
-
-    const db = await openDatabase(databaseFile);
-    try {
-      const rows = await getExpensesFromDb(db, { beginDate, endDate });
-      conversionRates = await getConversionRatesMapFromDb(db);
-      expenses = rows.map(r => ({
-        amount:         r.amount,
-        currencySymbol: r.currency_symbol,
-        currencyCode:   r.currency_code,
-        date:           r.date,
-        description:    r.description || '',
-        category:       r.category || null
-      }));
-    } finally {
-      db.close();
-    }
-    conversionSource = 'database';
+    ({ expenses, conversionRates, conversionSource } = await loadFromDatabase({ databaseFile, beginDate, endDate }));
   } else {
-    // --- CSV MODE ---
-    const inputFile = resolvePath(parsedArgs['input-file'], defaults.inputFile);
+    const inputFile           = resolvePath(parsedArgs['input-file'],       defaults.inputFile);
     const conversionRatesFile = resolvePath(parsedArgs['conversion-rates'], defaults.conversionRatesFile);
-    conversionRates = fileExists(conversionRatesFile) ? loadConversionRates(conversionRatesFile) : {};
-    conversionSource = path.basename(conversionRatesFile);
-
-    const { headers, rows: csvRows } = readCSV(inputFile);
-    if (csvRows.length === 0) {
-      logError('CSV file is empty or invalid');
-      process.exit(1);
-    }
-
-    const amountIdx      = headers.indexOf('amount');
-    const currencySymbolIdx = headers.indexOf('currency_symbol');
-    const currencyCodeIdx   = headers.indexOf('currency_code');
-    const dateIdx        = headers.indexOf('date');
-
-    if (amountIdx === -1 || currencySymbolIdx === -1 || currencyCodeIdx === -1 || dateIdx === -1) {
-      logError('CSV header is missing required columns');
-      process.exit(1);
-    }
-
-    expenses = csvRows.map(row => ({
-      amount:         parseFloat(row['amount']),
-      currencySymbol: row['currency_symbol'],
-      currencyCode:   row['currency_code'],
-      date:           row['date'],
-      description:    row['description'] || '',
-      category:       row['category'] || null
-    }));
-
-    // Apply date range filter in CSV mode
-    if (beginDate || endDate) {
-      expenses = expenses.filter(exp => {
-        const cmp = toComparableString(exp.date);
-        if (beginDate && cmp < toComparableString(beginDate)) return false;
-        if (endDate   && cmp > toComparableString(endDate))   return false;
-        return true;
-      });
-    }
+    ({ expenses, conversionRates, conversionSource } = loadFromCSV({ inputFile, conversionRatesFile, beginDate, endDate }));
   }
 
   // Apply named filter (both modes)
