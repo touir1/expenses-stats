@@ -36,7 +36,13 @@ const inputFile = resolvePath(parsedArgs['input-file'], defaults.rawFile);
 const defaultOutputFile = path.join(path.dirname(defaults.inputFile), 'depenses.csv');
 const outputFile = resolvePath(parsedArgs['output-file'], defaultOutputFile);
 
-const content = fs.readFileSync(inputFile, 'utf-8');
+let content;
+try {
+  content = fs.readFileSync(inputFile, 'utf-8');
+} catch (err) {
+  logError(`Cannot read input file: ${inputFile}`);
+  process.exit(1);
+}
 const lines = content.split('\n');
 
 // Parse the expenses

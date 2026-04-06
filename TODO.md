@@ -19,9 +19,9 @@
 
 ## Missing Error Handling
 
-- [ ] **`parser.script.js` — `fs.readFileSync` uncaught**: crashes with raw Node error instead of user-friendly message
-- [ ] **`data.util.js` — `JSON.parse` uncaught in `readJSON()`**: malformed config files produce cryptic errors
-- [ ] **`db-insert.script.js` — `db.close()` errors silently ignored**
+- [x] **`parser.script.js` — `fs.readFileSync` uncaught**: crashes with raw Node error instead of user-friendly message
+- [x] **`data.util.js` — `JSON.parse` uncaught in `readJSON()`**: malformed config files produce cryptic errors
+- [x] **`db-insert.script.js` — `db.close()` errors silently ignored**
 
 ## Performance
 

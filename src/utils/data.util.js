@@ -101,8 +101,17 @@ function writeCSVRaw(filePath, content) {
  * @returns {*}
  */
 function readJSON(filePath) {
-  const content = fs.readFileSync(filePath, 'utf-8').replace(/^\uFEFF/, '');
-  return JSON.parse(content);
+  let content;
+  try {
+    content = fs.readFileSync(filePath, 'utf-8').replace(/^\uFEFF/, '');
+  } catch (err) {
+    throw new Error(`Cannot read file: ${filePath}: ${err.message}`);
+  }
+  try {
+    return JSON.parse(content);
+  } catch (err) {
+    throw new Error(`Invalid JSON in ${filePath}: ${err.message}`);
+  }
 }
 
 /**

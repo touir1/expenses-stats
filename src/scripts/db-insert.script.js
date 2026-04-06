@@ -222,12 +222,15 @@ async function main() {
       }
     }
 
-    db.close(() => {
-      logSuccess('Database connection closed');
+    db.close((err) => {
+      if (err) logError(`Error closing database: ${err.message}`);
+      else logSuccess('Database connection closed');
     });
   } catch (err) {
     logError(err.message);
-    if (db) db.close();
+    if (db) db.close((closeErr) => {
+      if (closeErr) logError(`Error closing database: ${closeErr.message}`);
+    });
     process.exit(1);
   }
 }
