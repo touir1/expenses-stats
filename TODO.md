@@ -25,7 +25,7 @@
 
 ## Performance
 
-- [ ] **`db-insert.script.js` — full table pre-load**: entire `expenses` and `categories` tables loaded into memory before processing; will OOM on large datasets
+- [x] **`db-insert.script.js` — full table pre-load**: entire `expenses` and `categories` tables loaded into memory before processing; will OOM on large datasets
 - [x] **`db.util.js:517` — N+1 queries in `loadCategoryPatternsIntoDb()`**: one `SELECT id FROM categories` per pattern; should pre-load the map once
 - [x] **Missing DB index on `expenses.date`**: date-range queries do full table scans; add composite `(date, category_id)` index
 

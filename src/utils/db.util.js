@@ -328,21 +328,34 @@ function getAllCategoriesAsMap(db) {
   });
 }
 
-// Pre-fetch all existing expense hashes for deduplication.
-// Returns map: hash -> count
-function getAllExpensesAsMap(db) {
+// Fetch expense counts per (hash, date) pair for a specific set of hashes.
+// Date is not part of the hash, so two expenses with identical description/amount/currency
+// on different dates share a hash but are distinct rows — dedup must consider both.
+// Queries only hashes present in the CSV batch; returns map: "hash::date" -> count.
+// Chunked into batches of 999 to respect SQLite's max variable limit.
+function getExpenseCountsForHashes(db, hashes) {
   return new Promise((resolve, reject) => {
-    db.all(
-      'SELECT hash, COUNT(*) as count FROM expenses WHERE hash IS NOT NULL GROUP BY hash',
-      (err, rows) => {
-        if (err) { reject(err); return; }
-        const map = {};
-        (rows || []).forEach(r => {
-          map[r.hash] = r.count;
-        });
-        resolve(map);
-      }
-    );
+    if (hashes.length === 0) { resolve({}); return; }
+
+    const CHUNK_SIZE = 999;
+    const chunks = [];
+    for (let i = 0; i < hashes.length; i += CHUNK_SIZE) chunks.push(hashes.slice(i, i + CHUNK_SIZE));
+
+    const map = {};
+    let remaining = chunks.length;
+
+    for (const chunk of chunks) {
+      const placeholders = chunk.map(() => '?').join(', ');
+      db.all(
+        `SELECT hash, date, COUNT(*) as count FROM expenses WHERE hash IN (${placeholders}) GROUP BY hash, date`,
+        chunk,
+        (err, rows) => {
+          if (err) { reject(err); return; }
+          (rows || []).forEach(r => { map[`${r.hash}::${r.date}`] = r.count; });
+          if (--remaining === 0) resolve(map);
+        }
+      );
+    }
   });
 }
 
@@ -592,7 +605,7 @@ module.exports = {
   loadCategoryPatternsIntoDb,
   getCategoryPatternsFromDb,
   getAllCategoriesAsMap,
-  getAllExpensesAsMap,
+  getExpenseCountsForHashes,
   getExpensesFromDb,
   hashExpense
 };

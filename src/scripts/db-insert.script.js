@@ -2,7 +2,7 @@ const path = require('path');
 const { readCSV, loadCategories, loadCategoryPatterns, fileExists } = require('../utils/data.util');
 const { openDatabase, initializeDatabase, loadCategoriesIntoDb, loadCategoryPatternsIntoDb,
         loadConversionRatesIntoDb, insertExpensesBatch, getRowCount,
-        getAllCategoriesAsMap, getAllExpensesAsMap } = require('../utils/db.util');
+        getAllCategoriesAsMap, getExpenseCountsForHashes } = require('../utils/db.util');
 const { parseArgs } = require('../utils/cli-args.util');
 const { getDefaultPaths, resolvePath, ensureDir } = require('../utils/path-resolver.util');
 const { logSuccess, logError, logWarning, logInfo } = require('../utils/console-output.util');
@@ -111,8 +111,8 @@ async function main() {
     const { rows: csvRows } = readCSV(inputFile);
     logSuccess('Read CSV file', `${csvRows.length} rows`);
 
-    // Group rows by HASH to check for duplicates
-    // Hash is unique identifier for each distinct transaction (description + currency + amount)
+    // Group rows by (hash, date) — hash alone excludes date, so the same description/amount/currency
+    // on two different dates shares a hash but represents distinct expenses.
     const rowGroups = {};
     for (const row of csvRows) {
       const hash = row.hash;
@@ -120,8 +120,9 @@ async function main() {
         logWarning(`Row missing hash field`, `${row.date} • ${row.description}`);
         continue;
       }
-      if (!rowGroups[hash]) rowGroups[hash] = [];
-      rowGroups[hash].push(row);
+      const key = `${hash}::${row.date}`;
+      if (!rowGroups[key]) rowGroups[key] = [];
+      rowGroups[key].push(row);
     }
 
     let insertCount = 0;
@@ -129,23 +130,25 @@ async function main() {
     let warningCount = 0;
     const insertedByCategory = {};
 
-    logInfo(`Processing ${Object.keys(rowGroups).length} unique hashes (distinct transactions)`);
-    logInfo('Pre-loading categories and existing expenses for optimization');
+    logInfo(`Processing ${Object.keys(rowGroups).length} unique (hash, date) pairs`);
 
     // Pre-load all categories into memory (1 query instead of per-group lookups)
     const categoryMap = await getAllCategoriesAsMap(db);
     logSuccess('Loaded categories into memory', `${Object.keys(categoryMap).length} categories`);
 
-    // Pre-fetch all existing expenses for deduplication (1 query instead of per-group queries)
-    const expenseMap = await getAllExpensesAsMap(db);
-    logSuccess('Pre-fetched dedup keys from database', `${Object.keys(expenseMap).length} existing keys`);
+    // Fetch dedup counts for unique hashes in this batch (avoids full table scan).
+    // expenseMap key is "hash::date" — date is not in the hash, so same-hash rows on different
+    // dates are tracked separately.
+    const uniqueHashes = [...new Set(Object.keys(rowGroups).map(k => k.split('::')[0]))];
+    const expenseMap = await getExpenseCountsForHashes(db, uniqueHashes);
+    logSuccess('Fetched dedup counts for batch', `${Object.keys(expenseMap).length} existing (hash, date) keys`);
 
     // Collect all rows to insert (batch them)
     const rowsToInsert = [];
     let processedGroups = 0;
 
-    // Process each hash group to determine what needs inserting
-    for (const [hash, groupRows] of Object.entries(rowGroups)) {
+    // Process each (hash, date) group to determine what needs inserting
+    for (const [key, groupRows] of Object.entries(rowGroups)) {
       const csvCount = groupRows.length;
       const firstRow = groupRows[0];
       const categoryId = categoryMap[firstRow.category];
@@ -156,15 +159,12 @@ async function main() {
         continue;
       }
 
-      // Check if this hash already exists in the database
-      const dbCount = expenseMap[hash] || 0;
+      // Check how many rows with this (hash, date) already exist in the database
+      const dbCount = expenseMap[key] || 0;
 
       if (dbCount >= csvCount) {
-        // All rows with this hash are already in database
         skipCount += csvCount;
       } else if (csvCount > dbCount) {
-        // Need to insert the missing rows (those with the same hash)
-        // Since they have the same hash, they're identical, so just insert the difference
         const rowsNeeded = csvCount - dbCount;
         for (let i = 0; i < rowsNeeded; i++) {
           rowsToInsert.push({
@@ -178,7 +178,7 @@ async function main() {
           insertedByCategory[firstRow.category] = (insertedByCategory[firstRow.category] || 0) + 1;
         }
       } else {
-        logWarning(`Database has ${dbCount} rows vs CSV has ${csvCount}`, `${hash.substring(0, 8)}... • ${firstRow.category}`);
+        logWarning(`Database has ${dbCount} rows vs CSV has ${csvCount}`, `${key} • ${firstRow.category}`);
         warningCount++;
       }
       processedGroups++;
