@@ -89,6 +89,10 @@ function initializeDatabase(db, { dropAll = false } = {}) {
       db.run(`CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses (category_id)`
         , (err) => { if (err) reject(err); });
 
+      // Composite index for date-range queries (covers date filter + category join)
+      db.run(`CREATE INDEX IF NOT EXISTS idx_expenses_date_category ON expenses (date, category_id)`
+        , (err) => { if (err) reject(err); });
+
       // Index for FK lookups: category_filters by category (SQLite does not auto-index FK columns)
       db.run(`CREATE INDEX IF NOT EXISTS idx_category_filters_category ON category_filters (category_id)`
         , (err) => { if (err) reject(err); });
@@ -433,26 +437,37 @@ function getConversionRateFromDb(db, dateStr, base = 'EUR', quote = 'TND') {
 // Load category patterns into DB.
 // patterns: array of { description, category } where category is a label like "food/cafe".
 // Categories must already be loaded before calling this.
-function loadCategoryPatternsIntoDb(db, patterns) {
+async function loadCategoryPatternsIntoDb(db, patterns) {
+  if (patterns.length === 0) return;
+
+  // Pre-load all categories in one query instead of one SELECT per pattern
+  const categoryMap = await getAllCategoriesAsMap(db);
+
   return new Promise((resolve, reject) => {
-    if (patterns.length === 0) { resolve(); return; }
-    let processed = 0;
-    patterns.forEach((p) => {
-      db.get('SELECT id FROM categories WHERE label = ?', [p.category], (err, row) => {
-        if (err) { reject(err); return; }
-        if (!row) {
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      const stmt = db.prepare(
+        'INSERT OR REPLACE INTO category_patterns (description_pattern, date, amount, currency, word, category_id) VALUES (?, ?, ?, ?, ?, ?)'
+      );
+      for (const p of patterns) {
+        const categoryId = categoryMap[p.category];
+        if (!categoryId) {
           console.warn(`  ⚠ Category not found for pattern "${p.description}": ${p.category}`);
-          if (++processed === patterns.length) resolve();
-          return;
+          continue;
         }
-        db.run(
-          'INSERT OR REPLACE INTO category_patterns (description_pattern, date, amount, currency, word, category_id) VALUES (?, ?, ?, ?, ?, ?)',
-          [p.description, p.date || null, p.amount != null ? parseFloat(p.amount) : null, p.currency ? p.currency.toUpperCase() : null, p.word ? 1 : 0, row.id],
-          (err2) => {
-            if (err2) console.error(`Error inserting pattern "${p.description}":`, err2.message);
-            if (++processed === patterns.length) resolve();
-          }
-        );
+        stmt.run([
+          p.description,
+          p.date || null,
+          p.amount != null ? parseFloat(p.amount) : null,
+          p.currency ? p.currency.toUpperCase() : null,
+          p.word ? 1 : 0,
+          categoryId
+        ]);
+      }
+      stmt.finalize();
+      db.run('COMMIT', (err) => {
+        if (err) reject(err);
+        else resolve();
       });
     });
   });
