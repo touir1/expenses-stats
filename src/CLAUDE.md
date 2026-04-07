@@ -4,6 +4,8 @@ See root `CLAUDE.md` for full project map. This file covers internal conventions
 
 ## Data flow
 
+### CSV mode (default)
+
 ```
 depenses.txt → parser.script.js → depenses.csv
                                       ↓
@@ -16,7 +18,25 @@ depenses.txt → parser.script.js → depenses.csv
                            stats.script.js → depenses-stats.json
 ```
 
-DB mode bypasses filter.script.js — date/filter logic moves into SQL via `db.util.js`.
+### DB mode (`--use-database`, two-pass)
+
+```
+depenses.txt → parser.script.js → depenses.csv
+                                      ↓
+                           label.script.js → depenses-labeled.csv (kept for CSV mode)
+                                      ↓
+                    db-insert.script.js --skip-labels (category_id = NULL)
+                                      ↓
+                    generate-validation.script.js → depenses-validation.csv
+                                      ↓
+                            *** user edits "category" column ***
+                                      ↓
+                           apply-labels.script.js (UPDATE expenses SET category_id)
+                                      ↓
+                           stats.script.js --use-database → depenses-stats.json
+```
+
+Use `--force-labels` on the pipeline to skip validation and commit labels immediately (old behaviour).
 
 ## Adding a path default
 
@@ -37,14 +57,16 @@ Edit `config/filters.config.json`. Pipelines write the resolved definition to `c
 ## Script→util dependency map
 
 ```
-pipeline.script.js          → process-runner, rate-manager, cli-args
-pipeline-date-range.script  → process-runner, rate-manager, cli-args, console-output
-parser.script.js            → cli-args, path-resolver, console-output, hash
-label.script.js             → cli-args, path-resolver, data, text, console-output
-filter.script.js            → cli-args, path-resolver, data, csv, filtering, text
-stats.script.js             → cli-args, path-resolver, data, db, conversion-rates, filtering, console-output
-db-insert.script.js         → cli-args, path-resolver, data, db, console-output
-update-rates.script.js      → cli-args, path-resolver, db, console-output
-category-details.script.js  → cli-args, path-resolver, data, console-output
-list-other.script.js        → cli-args, path-resolver, data
+pipeline.script.js              → process-runner, rate-manager, cli-args
+pipeline-date-range.script      → process-runner, rate-manager, cli-args, console-output
+parser.script.js                → cli-args, path-resolver, console-output, hash
+label.script.js                 → cli-args, path-resolver, data, text, console-output
+filter.script.js                → cli-args, path-resolver, data, csv, filtering, text
+stats.script.js                 → cli-args, path-resolver, data, db, conversion-rates, filtering, console-output
+db-insert.script.js             → cli-args, path-resolver, data, db, console-output
+generate-validation.script.js   → cli-args, path-resolver, data, db, text, filtering, csv, console-output
+apply-labels.script.js          → cli-args, path-resolver, data, db, console-output
+update-rates.script.js          → cli-args, path-resolver, db, console-output
+category-details.script.js      → cli-args, path-resolver, data, console-output
+list-other.script.js            → cli-args, path-resolver, data
 ```

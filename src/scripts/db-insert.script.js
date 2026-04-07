@@ -14,7 +14,8 @@ const optionDefs = [
   { flag: '--forced-categories-file', param: true, default: null },
   { flag: '--conversion-rates-file', param: true, default: null },
   { flag: '--database', param: true, default: null },
-  { flag: '--reset-database', param: false }
+  { flag: '--reset-database', param: false },
+  { flag: '--skip-labels', param: false }
 ];
 
 const { showHelp, args: parsedArgs } = parseArgs(process.argv, optionDefs);
@@ -30,6 +31,7 @@ Options:
   --conversion-rates-file <path>   Conversion rates CSV file (default: data/processed/conversion-rates.csv)
   --database <path>                SQLite database file (default: data/database/depenses.db)
   --reset-database                 Delete all data and recreate the tables
+  --skip-labels                    Insert expenses with category_id = NULL (ignore category column)
   -h, --help                      Show this help message
 
 Examples:
@@ -47,6 +49,7 @@ const forcedCategoriesFile = resolvePath(parsedArgs['forced-categories-file'], d
 const conversionRatesFile = resolvePath(parsedArgs['conversion-rates-file'], defaults.conversionRatesFile);
 const databaseFile = resolvePath(parsedArgs['database'], defaults.databaseFile);
 const deleteAll = parsedArgs['reset-database'] || false;
+const skipLabels = parsedArgs['skip-labels'] || false;
 
 // Ensure database directory exists
 ensureDir(path.dirname(databaseFile));
@@ -132,9 +135,12 @@ async function main() {
 
     logInfo(`Processing ${Object.keys(rowGroups).length} unique (hash, date) pairs`);
 
+    if (skipLabels) logInfo('--skip-labels active: inserting expenses without category');
+
     // Pre-load all categories into memory (1 query instead of per-group lookups)
-    const categoryMap = await getAllCategoriesAsMap(db);
-    logSuccess('Loaded categories into memory', `${Object.keys(categoryMap).length} categories`);
+    // Skipped when --skip-labels is set since no category resolution is needed.
+    const categoryMap = skipLabels ? {} : await getAllCategoriesAsMap(db);
+    if (!skipLabels) logSuccess('Loaded categories into memory', `${Object.keys(categoryMap).length} categories`);
 
     // Fetch dedup counts for unique hashes in this batch (avoids full table scan).
     // expenseMap key is "hash::date" — date is not in the hash, so same-hash rows on different
@@ -151,12 +157,15 @@ async function main() {
     for (const [key, groupRows] of Object.entries(rowGroups)) {
       const csvCount = groupRows.length;
       const firstRow = groupRows[0];
-      const categoryId = categoryMap[firstRow.category];
 
-      if (!categoryId) {
-        logWarning(`Category not found: ${firstRow.category}`);
-        warningCount++;
-        continue;
+      let categoryId = null;
+      if (!skipLabels) {
+        categoryId = categoryMap[firstRow.category];
+        if (categoryId === undefined) {
+          logWarning(`Category not found: ${firstRow.category}`);
+          warningCount++;
+          continue;
+        }
       }
 
       // Check how many rows with this (hash, date) already exist in the database
@@ -175,7 +184,9 @@ async function main() {
             description: firstRow.description,
             category_id: categoryId
           });
-          insertedByCategory[firstRow.category] = (insertedByCategory[firstRow.category] || 0) + 1;
+          if (!skipLabels && firstRow.category) {
+            insertedByCategory[firstRow.category] = (insertedByCategory[firstRow.category] || 0) + 1;
+          }
         }
       } else {
         logWarning(`Database has ${dbCount} rows vs CSV has ${csvCount}`, `${key} • ${firstRow.category}`);

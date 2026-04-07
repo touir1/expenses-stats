@@ -587,6 +587,51 @@ function getConversionRatesMapFromDb(db, base = 'EUR', quote = 'TND') {
   });
 }
 
+// Fetch all expenses where category_id IS NULL, one representative row per (hash, date).
+// Returns array of { hash, date, description, amount, currency_code, currency_symbol }.
+function getUnlabeledExpenses(db) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      `SELECT hash, date, description, amount, currency_code, currency_symbol
+       FROM expenses
+       WHERE category_id IS NULL
+       GROUP BY hash, date
+       ORDER BY substr(date,7,4)||substr(date,4,2)||substr(date,1,2)`,
+      (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows || []);
+      }
+    );
+  });
+}
+
+// Update category_id for all expenses matching (hash, date) in a single transaction.
+// updates: array of { hash, date, categoryId }
+// Returns total number of rows changed.
+function updateExpenseCategoriesBatch(db, updates) {
+  return new Promise((resolve, reject) => {
+    if (updates.length === 0) { resolve(0); return; }
+    let totalChanges = 0;
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      const stmt = db.prepare(
+        'UPDATE expenses SET category_id = ? WHERE hash = ? AND date = ?'
+      );
+      for (const u of updates) {
+        stmt.run([u.categoryId, u.hash, u.date], function(err) {
+          if (err) console.error(`Error updating expense ${u.hash}::${u.date}:`, err.message);
+          else totalChanges += this.changes;
+        });
+      }
+      stmt.finalize();
+      db.run('COMMIT', (err) => {
+        if (err) reject(err);
+        else resolve(totalChanges);
+      });
+    });
+  });
+}
+
 module.exports = {
   openDatabase,
   initializeDatabase,
@@ -607,5 +652,7 @@ module.exports = {
   getAllCategoriesAsMap,
   getExpenseCountsForHashes,
   getExpensesFromDb,
+  getUnlabeledExpenses,
+  updateExpenseCategoriesBatch,
   hashExpense
 };

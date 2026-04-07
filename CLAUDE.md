@@ -2,6 +2,8 @@
 
 Node.js expense analysis tool: parse text → CSV → label categories → filter → stats. Currencies: EUR (€) and TND (dt).
 
+DB mode uses a **label validation gate**: expenses are inserted unlabeled, guesses are written to a CSV for user review, and labels are committed only after the user confirms them.
+
 ## Directory layout
 
 ```
@@ -14,9 +16,10 @@ data/
   raw/depenses.txt             # Source input (hand-written expense log)
   processed/depenses.csv       # Parsed output
   processed/depenses-labeled.csv # After label.script.js
+  processed/depenses-validation.csv # Label guesses awaiting user review (DB mode)
   processed/conversion-rates.csv # EUR↔TND rates by date
   database/depenses.db         # SQLite (optional DB mode)
-docs/                          # Extended docs (FILTER_GUIDE, FORCED_CATEGORIES, data-schema)
+docs/                          # Extended docs (FILTER_GUIDE, FORCED_CATEGORIES, data-schema, LABEL_VALIDATION_PLAN)
 output/                        # Stats JSON + filtered CSVs (gitignored)
 src/
   scripts/                     # Runnable entry points (see below)
@@ -27,13 +30,15 @@ src/
 
 | File | Purpose |
 |------|---------|
-| `pipeline.script.js` | Full run: parse → label → [filter] → stats |
+| `pipeline.script.js` | Full run: parse → label → [filter] → stats; DB mode pauses for label validation |
 | `pipeline-date-range.script.js` | Same but with `--begin-date`/`--end-date` |
 | `parser.script.js` | `depenses.txt` → `depenses.csv` (adds hash column) |
 | `label.script.js` | Adds `category` column via token matching |
 | `filter.script.js` | Filters CSV rows (GraphQL-style operators or date range) |
 | `stats.script.js` | Generates JSON + console stats; supports DB mode |
-| `db-insert.script.js` | Loads labeled CSV into SQLite |
+| `db-insert.script.js` | Inserts CSV rows into SQLite; `--skip-labels` inserts with `category_id = NULL` |
+| `generate-validation.script.js` | Queries unlabeled DB rows, guesses labels, writes `depenses-validation.csv` |
+| `apply-labels.script.js` | Reads user-edited validation CSV and updates `category_id` in DB |
 | `update-rates.script.js` | Fetches EUR↔TND rates from frankfurter.dev API |
 | `category-details.script.js` | Drill-down stats for a specific category |
 | `list-other.script.js` | Lists rows with `category = "other"` (for finding new tokens) |
@@ -49,7 +54,7 @@ src/
 | `csv.util.js` | `parseCSVLine()` — handles quoted fields |
 | `data.util.js` | `readCSV`, `readCSVLines`, `writeCSVRaw`, `readJSON`, `fileExists` |
 | `date.util.js` | `toComparableString(dd/mm/yyyy)` for date comparisons |
-| `db.util.js` | All SQLite operations — schema init, insert, query |
+| `db.util.js` | All SQLite operations — schema init, insert, query, `getUnlabeledExpenses`, `updateExpenseCategoriesBatch` |
 | `filtering.util.js` | `matchesFilter(value, condition, columnName)` — all filter operators |
 | `hash.util.js` | `hashExpense(description, currencyCode, amount)` — dedup key |
 | `process-runner.util.js` | `runCommand(scriptPath, args, opts)` — spawns child node processes |
@@ -60,16 +65,27 @@ src/
 ## npm scripts
 
 ```bash
-npm run pipeline                    # Full pipeline
+npm run pipeline                    # Full pipeline (CSV mode)
 npm run pipeline:quick              # Skip parsing
 npm run pipeline:car|eur|tnd|food|transport  # With named filter
 npm run pipeline:date-range -- --begin-date "01/03/2026" --end-date "31/03/2026"
 npm run stats                       # Stats only
 npm run list:other                  # Inspect uncategorized rows
 npm run update-rates                # Refresh conversion-rates.csv
-npm run db:insert                   # Load into SQLite
 npm run query                       # Filter and display rows (CSV mode by default)
 npm run query -- --database --currency TND --begin-date "01/01/2025"
+
+# DB mode — label validation workflow (two-pass)
+npm run pipeline -- --use-database  # Pass 1: insert raw + generate validation file
+#  → edit data/processed/depenses-validation.csv (correct the "category" column)
+npm run db:apply-labels             # Pass 2: commit validated labels to DB
+npm run db:apply-labels:dry         # Preview updates without writing
+npm run stats -- --use-database     # Generate stats from DB
+npm run db:gen-validation           # Regenerate/append validation file manually
+npm run db:insert                   # Insert raw CSV into DB without labels (manual use)
+
+# DB mode — skip validation (old behaviour)
+npm run pipeline -- --use-database --force-labels
 ```
 
 ## Key conventions
@@ -80,6 +96,7 @@ npm run query -- --database --currency TND --begin-date "01/01/2025"
 - **Category matching**: token-based, word-boundary, accent-insensitive, case-insensitive (`text.util.js`)
 - **Hashing**: each expense gets a SHA-based hash from (description, currency, amount) for dedup in DB mode
 - **DB mode**: enabled with `--use-database` in stats/pipeline, or `--database` / `--database-file` in `query.script.js`
+- **Label validation gate**: in DB mode, the pipeline inserts expenses with `category_id = NULL` then writes `depenses-validation.csv` with auto-guessed labels. The user edits the file and runs `db:apply-labels` to commit. Use `--force-labels` to bypass and commit labels immediately.
 
 ## CSV column schema
 

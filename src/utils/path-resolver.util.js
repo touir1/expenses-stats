@@ -40,6 +40,7 @@ function getDefaultPaths() {
     categoriesFile: path.join(root, 'config', 'categories.config.json'),
     forcedCategoriesFile: path.join(root, 'config', 'forced-categories.config.json'),
     conversionRatesFile: path.join(root, 'data', 'processed', 'conversion-rates.csv'),
+    validationFile: path.join(root, 'data', 'processed', 'depenses-validation.csv'),
     databaseFile: path.join(root, 'data', 'database', 'depenses.db'),
     outputDir: path.join(root, 'output'),
     configDir: path.join(root, 'config'),
