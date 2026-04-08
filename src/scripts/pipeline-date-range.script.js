@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const { parseArgs } = require('../utils/cli-args.util');
 const { runCommand } = require('../utils/process-runner.util');
 const { ensureRatesUpdated } = require('../utils/rate-manager.util');
+const { getDefaultPaths } = require('../utils/path-resolver.util');
 const { logSuccess, logError, logWarning, logInfo } = require('../utils/console-output.util');
 
 function validateDateFormat(dateStr) {
@@ -82,6 +82,7 @@ Examples:
   }
 
   const dateRangeSuffix = `${beginDate.replace(/\//g, '-')}-to-${endDate.replace(/\//g, '-')}`;
+  const defaults = getDefaultPaths();
 
   try {
     console.log('╔════════════════════════════════════════════╗');
@@ -108,10 +109,10 @@ Examples:
       await runCommand(
         path.join(__dirname, 'label.script.js'),
         [
-          '--input-file', path.join(__dirname, '..', '..', 'data', 'processed', 'depenses.csv'),
-          '--output-file', path.join(__dirname, '..', '..', 'data', 'processed', 'depenses-labeled.csv'),
-          '--categories-file', path.join(__dirname, '..', '..', 'config', 'categories.config.json'),
-          '--forced-categories-file', path.join(__dirname, '..', '..', 'config', 'forced-categories.config.json')
+          '--input-file',             defaults.parsedFile,
+          '--output-file',            defaults.inputFile,
+          '--categories-file',        defaults.categoriesFile,
+          '--forced-categories-file', defaults.forcedCategoriesFile
         ],
         { description: 'Step 2: Labeling expenses with categories' }
       );
@@ -119,11 +120,11 @@ Examples:
       console.log('⊘ Skipping labeling step');
     }
 
-    const labeledCsv   = path.join(__dirname, '..', '..', 'data', 'processed', 'depenses-labeled.csv');
-    const databaseFile = databaseArg || path.join(__dirname, '..', '..', 'data', 'database', 'depenses.db');
+    const labeledCsv      = defaults.inputFile;
+    const databaseFile    = databaseArg || defaults.databaseFile;
     const statsOutputFile = applyFilter
-      ? path.join(__dirname, '..', '..', 'output', `depenses-${dateRangeSuffix}-${applyFilter}-stats.json`)
-      : path.join(__dirname, '..', '..', 'output', `depenses-${dateRangeSuffix}-stats.json`);
+      ? path.join(defaults.outputDir, `depenses-${dateRangeSuffix}-${applyFilter}-stats.json`)
+      : path.join(defaults.outputDir, `depenses-${dateRangeSuffix}-stats.json`);
 
     if (useDatabase) {
       // Step 3: DB Insert
@@ -149,7 +150,7 @@ Examples:
     } else {
       // Step 3: Filter by date range
       let inputForStats = labeledCsv;
-      const dateFilteredOutput = path.join(__dirname, '..', '..', 'output', `depenses-${dateRangeSuffix}-filtered.csv`);
+      const dateFilteredOutput = path.join(defaults.outputDir, `depenses-${dateRangeSuffix}-filtered.csv`);
 
       await runCommand(
         path.join(__dirname, 'filter.script.js'),
@@ -160,16 +161,16 @@ Examples:
 
       // Step 4: Apply additional named filter if specified
       if (applyFilter) {
-        const configPath = path.join(__dirname, '..', '..', 'config', 'filters.config.json');
+        const configPath = path.join(defaults.configDir, 'filters.config.json');
         const filterConfig = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
         if (!filterConfig.filters[applyFilter]) {
           throw new Error(`Unknown filter key: "${applyFilter}". Available: ${Object.keys(filterConfig.filters).join(', ')}`);
         }
         const filterDef  = filterConfig.filters[applyFilter];
-        const filterFile = path.join(__dirname, '..', '..', 'config', 'filters', `filter-${applyFilter}.json`);
+        const filterFile = path.join(defaults.configDir, 'filters', `filter-${applyFilter}.json`);
         fs.writeFileSync(filterFile, JSON.stringify(filterDef, null, 2), 'utf-8');
 
-        const additionalFilteredOutput = path.join(__dirname, '..', '..', 'output', `depenses-${dateRangeSuffix}-${applyFilter}-filtered.csv`);
+        const additionalFilteredOutput = path.join(defaults.outputDir, `depenses-${dateRangeSuffix}-${applyFilter}-filtered.csv`);
         await runCommand(
           path.join(__dirname, 'filter.script.js'),
           ['--input-file', inputForStats, '--output-file', additionalFilteredOutput, '--filters-file', filterFile],
@@ -184,7 +185,7 @@ Examples:
         [
           '--input-file', inputForStats,
           '--output', 'both', '--output-file', statsOutputFile,
-          '--conversion-rates', path.join(__dirname, '..', '..', 'data', 'processed', 'conversion-rates.csv')
+          '--conversion-rates', defaults.conversionRatesFile
         ],
         { description: applyFilter ? `Step 5: Generating statistics (date range + ${applyFilter} filter)` : 'Step 5: Generating statistics (date range filter)' }
       );
