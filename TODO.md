@@ -11,6 +11,7 @@
 
 - [x] **Conversion rate fallback differs between modes**: CSV mode falls back to earliest available rate; DB mode returns nothing — `getConversionRateFromDb` now uses a UNION query to try nearest-prior then earliest available, matching `getRateForDate()` semantics
 - [x] **`readCSV()` vs `readCSVLines()` return different shapes**: `readCSVLines` now returns `{ headers, headerLine, lines, columnMap }` where `lines` is data-only (no header row); callers updated to use `headerLine` for re-serialization and iterate `lines` directly
+- [ ] **`filter.script.js` uses bare `console.log` for output summary**: lines 182–190 use `console.log` directly instead of `logSuccess`/`logWarning` from `console-output.util.js`, inconsistent with every other script
 
 ## Dead Code
 
@@ -22,6 +23,7 @@
 - [x] **`parser.script.js` — `fs.readFileSync` uncaught**: crashes with raw Node error instead of user-friendly message
 - [x] **`data.util.js` — `JSON.parse` uncaught in `readJSON()`**: malformed config files produce cryptic errors
 - [x] **`db-insert.script.js` — `db.close()` errors silently ignored**
+- [ ] **`main()` missing `.catch()` in most entry-point scripts**: `category-details.script.js`, `generate-validation.script.js`, `apply-labels.script.js`, `db-insert.script.js`, `pipeline-date-range.script.js`, and `pipeline.script.js` all call `main()` bare — on Node ≥ 15 an unhandled rejection terminates silently without printing the error (compare: `query.script.js` and `stats.script.js` already use `main().catch(...)`)
 
 ## Performance
 
@@ -44,6 +46,7 @@
 - [x] **`stats.script.js` duplicates calculation logic**: CSV and DB modes diverge completely but compute the same output structure; a data-source abstraction would let both share one calculation pass
 - [x] **`pipeline.script.js` hardcodes paths instead of using `getDefaultPaths()`**: lines 84–87 build paths manually (`path.join(__dirname, '..', '..', 'data', ...)`) instead of reading from `path-resolver.util.js`; breaks if paths change
 - [x] **`FORCED_CATEGORIES.md` is internally contradictory**: rewrote to match actual implementation — description-substring matching, `category_patterns` table, no hash/date-based lookup
+- [ ] **`pipeline-date-range.script.js` hardcodes paths instead of using `getDefaultPaths()`**: lines 111–114, 122, 152, 163, 169, 172, 187 all use `path.join(__dirname, '..', '..', ...)` directly — the same fix already applied to `pipeline.script.js` was never applied here
 
 ## Missing Scripts
 
