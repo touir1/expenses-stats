@@ -23,7 +23,7 @@
 - [x] **`parser.script.js` — `fs.readFileSync` uncaught**: crashes with raw Node error instead of user-friendly message
 - [x] **`data.util.js` — `JSON.parse` uncaught in `readJSON()`**: malformed config files produce cryptic errors
 - [x] **`db-insert.script.js` — `db.close()` errors silently ignored**
-- [ ] **`main()` missing `.catch()` in most entry-point scripts**: `category-details.script.js`, `generate-validation.script.js`, `apply-labels.script.js`, `db-insert.script.js`, `pipeline-date-range.script.js`, and `pipeline.script.js` all call `main()` bare — on Node ≥ 15 an unhandled rejection terminates silently without printing the error (compare: `query.script.js` and `stats.script.js` already use `main().catch(...)`)
+- [x] **`main()` missing `.catch()` in most entry-point scripts**: `category-details.script.js`, `generate-validation.script.js`, `apply-labels.script.js`, `db-insert.script.js`, `pipeline-date-range.script.js`, and `pipeline.script.js` all call `main()` bare — on Node ≥ 15 an unhandled rejection terminates silently without printing the error (compare: `query.script.js` and `stats.script.js` already use `main().catch(...)`)
 
 ## Performance
 

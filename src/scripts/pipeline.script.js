@@ -6,6 +6,7 @@ const { parseArgs } = require('../utils/cli-args.util');
 const { runCommand } = require('../utils/process-runner.util');
 const { ensureRatesUpdated } = require('../utils/rate-manager.util');
 const { getDefaultPaths } = require('../utils/path-resolver.util');
+const { logError } = require('../utils/console-output.util');
 
 async function main() {
   // Parse pipeline arguments
@@ -220,4 +221,7 @@ Examples:
   }
 }
 
-main();
+main().catch(err => {
+  logError(err.message);
+  process.exit(1);
+});

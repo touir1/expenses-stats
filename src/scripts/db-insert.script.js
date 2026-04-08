@@ -246,4 +246,7 @@ async function main() {
   }
 }
 
-main();
+main().catch(err => {
+  logError(err.message);
+  process.exit(1);
+});
