@@ -1,6 +1,7 @@
 const sqlite3 = require('sqlite3').verbose();
 const { hashExpense } = require('./hash.util');
 const { DEFAULT_RATE } = require('./conversion-rates.util');
+const { logError, logWarning } = require('./console-output.util');
 
 // Open a SQLite database connection
 function openDatabase(databaseFile) {
@@ -180,7 +181,7 @@ function loadCategoriesIntoDb(db, categories) {
           [cat.name, cat.parentLabel || null, cat.label],
           function(err) {
             if (err) {
-              console.error(`Error inserting category ${cat.label}:`, err.message);
+              logError(`Error inserting category ${cat.label}`, err.message);
               catError = err;
             }
           }
@@ -220,7 +221,7 @@ function loadCategoriesIntoDb(db, categories) {
 
               filterStmt.run([categoryId, colName, operator, filterValue], function(err) {
                 if (err) {
-                  console.error(`Error inserting filter for ${cat.label}:`, err.message);
+                  logError(`Error inserting filter for ${cat.label}`, err.message);
                   return;
                 }
 
@@ -233,7 +234,7 @@ function loadCategoriesIntoDb(db, categories) {
                     const token = typeof tokenDef === 'string' ? tokenDef : tokenDef.token;
                     const word  = typeof tokenDef === 'string' ? 1 : (tokenDef.word !== false ? 1 : 0);
                     tokenStmt.run([filterId, token, word], (err) => {
-                      if (err) console.error(`Error inserting token "${token}":`, err.message);
+                      if (err) logError(`Error inserting token "${token}"`, err.message);
                       else tokenInsertCount++;
                     });
                   }
@@ -465,7 +466,7 @@ async function loadCategoryPatternsIntoDb(db, patterns) {
       for (const p of patterns) {
         const categoryId = categoryMap[p.category];
         if (!categoryId) {
-          console.warn(`  ⚠ Category not found for pattern "${p.description}": ${p.category}`);
+          logWarning(`Category not found for pattern "${p.description}"`, p.category);
           continue;
         }
         stmt.run([
@@ -619,7 +620,7 @@ function updateExpenseCategoriesBatch(db, updates) {
       );
       for (const u of updates) {
         stmt.run([u.categoryId, u.hash, u.date], function(err) {
-          if (err) console.error(`Error updating expense ${u.hash}::${u.date}:`, err.message);
+          if (err) logError(`Error updating expense ${u.hash}::${u.date}`, err.message);
           else totalChanges += this.changes;
         });
       }

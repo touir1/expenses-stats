@@ -6,7 +6,7 @@ const { parseCSVLine } = require('../utils/csv.util');
 const { readCSVLines, writeCSVRaw, loadCategories, loadCategoryPatterns, fileExists } = require('../utils/data.util');
 const { parseArgs } = require('../utils/cli-args.util');
 const { getDefaultPaths, resolvePath } = require('../utils/path-resolver.util');
-const { logWarning, logError, logSuccess, logInfo } = require('../utils/console-output.util');
+const { logWarning, logError, logSuccess } = require('../utils/console-output.util');
 
 // Parse command-line arguments
 const optionDefs = [
@@ -73,7 +73,7 @@ if (categoriesFile) {
   try {
     categoryDefs = loadCategories(fPath);
   } catch (e) {
-    console.error('Error: Could not read/parse --categories-file:', e.message);
+    logError('Could not read/parse --categories-file', e.message);
     process.exit(1);
   }
 } else if (categoriesJson) {
@@ -81,16 +81,16 @@ if (categoriesFile) {
     const parsed = JSON.parse(categoriesJson);
     categoryDefs = parsed.categories || [];
   } catch (e) {
-    console.error('Error: Invalid JSON in --categories:', e.message);
+    logError('Invalid JSON in --categories', e.message);
     process.exit(1);
   }
 } else {
-  console.error('Error: --categories or --categories-file is required');
+  logError('--categories or --categories-file is required');
   process.exit(1);
 }
 
 if (categoryDefs.length === 0) {
-  console.error('Error: No categories defined');
+  logError('No categories defined');
   process.exit(1);
 }
 
@@ -224,15 +224,15 @@ try {
   writeCSVRaw(outputFile, outputLines.join('\n') + '\n');
 
   const totalRows = lines.length - 1;
-  console.log(`✓ Labeled CSV created: ${outputFile}`);
-  console.log(`✓ Total rows: ${totalRows}`);
-  console.log(`✓ Category breakdown:`);
+  logSuccess('Labeled CSV created', outputFile);
+  logSuccess('Total rows', `${totalRows}`);
+  logSuccess('Category breakdown');
   const sorted = Object.entries(tally).sort((a, b) => b[1] - a[1]);
   for (const [label, count] of sorted) {
     const pct = ((count / totalRows) * 100).toFixed(1);
     console.log(`    ${label.padEnd(20)} ${String(count).padStart(4)} rows  (${pct}%)`);
   }
 } catch (err) {
-  console.error(`Error: ${err.message}`);
+  logError(err.message);
   process.exit(1);
 }

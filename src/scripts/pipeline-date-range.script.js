@@ -6,7 +6,7 @@ const { parseArgs } = require('../utils/cli-args.util');
 const { runCommand } = require('../utils/process-runner.util');
 const { ensureRatesUpdated } = require('../utils/rate-manager.util');
 const { getDefaultPaths } = require('../utils/path-resolver.util');
-const { logSuccess, logError, logWarning, logInfo } = require('../utils/console-output.util');
+const { logError, logInfo } = require('../utils/console-output.util');
 
 function validateDateFormat(dateStr) {
   if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) return false;
@@ -101,7 +101,7 @@ Examples:
         { description: 'Step 1: Parsing depenses.txt to CSV' }
       );
     } else {
-      console.log('⊘ Skipping parsing step');
+      logInfo('⊘ Skipping parsing step');
     }
 
     // Step 2: Label
@@ -117,7 +117,7 @@ Examples:
         { description: 'Step 2: Labeling expenses with categories' }
       );
     } else {
-      console.log('⊘ Skipping labeling step');
+      logInfo('⊘ Skipping labeling step');
     }
 
     const labeledCsv      = defaults.inputFile;
@@ -192,7 +192,7 @@ Examples:
     }
 
     console.log('\n╔════════════════════════════════════════════╗');
-    console.log('║   🎉 PIPELINE COMPLETED SUCCESSFULLY!     ║');
+    console.log('║   🎉 PIPELINE COMPLETED SUCCESSFULLY!      ║');
     console.log('╚════════════════════════════════════════════╝\n');
 
     console.log(`Date Range: ${beginDate} to ${endDate}`);
@@ -202,7 +202,7 @@ Examples:
     console.log(`Output: ${statsOutputFile}`);
 
   } catch (err) {
-    console.error(`\n❌ Pipeline failed: ${err.message}`);
+    logError('Pipeline failed', err.message);
     process.exit(1);
   }
 }

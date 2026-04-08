@@ -223,10 +223,10 @@ Note:
         }
       }
     }
-    console.log(`Found ${rates.length} existing rates in CSV\n`);
+    logInfo('Existing rates in CSV', `${rates.length}`);
   }
 
-  console.log(`Date range: ${startDate} to ${endDate}\n`);
+  logInfo('Date range', `${startDate} to ${endDate}`);
 
   let successCount = 0;
   let failCount = 0;
@@ -267,17 +267,14 @@ Note:
       }
     }
     
-    console.log(`✓ Successfully fetched ${successCount} daily rates from API`);
+    logSuccess('Fetched daily rates from API', `${successCount}`);
   } catch (err) {
     logError('Failed to fetch rates', err.message);
     failCount++;
   }
 
-  console.log('');
-
   if (rates.length === 0) {
-    console.error('\n❌ No rates available.');
-    console.error('   Failed to fetch rates from frankfurter.dev API.');
+    logError('No rates available', 'Failed to fetch rates from frankfurter.dev API.');
     process.exit(1);
   }
 
@@ -288,12 +285,10 @@ Note:
   const csv = 'date,base,quote,rate\n' + rates.map(r => `${r.date},${r.base},${r.quote},${r.rate}`).join('\n');
   fs.writeFileSync(csvPath, csv, 'utf-8');
 
-  console.log('\n' + '='.repeat(60));
-  console.log(`✓ Updated ${csvPath}`);
-  console.log(`  Total rates in file: ${rates.length}`);
-  if (successCount > 0) console.log(`  Successfully fetched: ${successCount} rates`);
-  if (failCount > 0)    console.log(`  Failed: ${failCount} rates`);
-  console.log('='.repeat(60));
+  logSuccess('Updated', csvPath);
+  logInfo('Total rates in file', `${rates.length}`);
+  if (successCount > 0) logSuccess('Successfully fetched', `${successCount} rates`);
+  if (failCount > 0)    logWarning('Failed to fetch', `${failCount} rates`);
 
   // Optionally sync all rates to the SQLite database
   if (databaseArg && successCount > 0) {
@@ -318,7 +313,7 @@ Note:
     await main();
     process.exitCode = 0;
   } catch (err) {
-    console.error(`\n❌ Error: ${err.message}`);
+    logError(err.message);
     process.exitCode = 1;
   }
 })();

@@ -1,4 +1,5 @@
 const fs = require('fs');
+const { logWarning } = require('./console-output.util');
 
 const DEFAULT_RATE = 3.5;
 
@@ -37,7 +38,7 @@ function loadConversionRates(csvPath, base = 'EUR', quote = 'TND') {
     }
     return rates;
   } catch (e) {
-    console.error('Warning: Could not read conversion rates:', e.message);
+    logWarning('Could not read conversion rates', e.message);
     return {};
   }
 }

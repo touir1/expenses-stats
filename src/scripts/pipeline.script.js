@@ -92,7 +92,7 @@ Examples:
         { description: 'Step 1: Parsing depenses.txt to CSV' }
       );
     } else {
-      console.log('⊘ Skipping parsing step');
+      logInfo('⊘ Skipping parsing step');
     }
 
     // Step 2: Label
@@ -108,7 +108,7 @@ Examples:
         { description: 'Step 2: Labeling expenses with categories' }
       );
     } else {
-      console.log('⊘ Skipping labeling step');
+      logInfo('⊘ Skipping labeling step');
     }
 
     const labeledCsv      = defaults.inputFile;
@@ -207,7 +207,7 @@ Examples:
     }
 
     console.log('\n╔════════════════════════════════════════════╗');
-    console.log('║   🎉 PIPELINE COMPLETED SUCCESSFULLY!     ║');
+    console.log('║   🎉 PIPELINE COMPLETED SUCCESSFULLY!      ║');
     console.log('╚════════════════════════════════════════════╝\n');
 
     if (filterKey) {
@@ -216,7 +216,7 @@ Examples:
     }
 
   } catch (err) {
-    console.error(`\n❌ Pipeline failed: ${err.message}`);
+    logError('Pipeline failed', err.message);
     process.exit(1);
   }
 }
