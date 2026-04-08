@@ -4,7 +4,7 @@ const { matchesFilter } = require('../utils/filtering.util');
 const { readCSVLines, writeCSVRaw, readJSON } = require('../utils/data.util');
 const { parseArgs } = require('../utils/cli-args.util');
 const { getDefaultPaths, resolvePath } = require('../utils/path-resolver.util');
-const { logError } = require('../utils/console-output.util');
+const { logSuccess, logWarning, logError } = require('../utils/console-output.util');
 
 // Parse command-line arguments
 const optionDefs = [
@@ -179,17 +179,17 @@ try {
   // Write the output file
   writeCSVRaw(outputFile, csv);
 
-  console.log(`✓ Filtered CSV created: ${outputFile}`);
-  console.log(`✓ Total rows: ${totalRows}`);
-  console.log(`✓ Matching rows: ${filteredRows.length}`);
-  console.log(`✓ Filtered out: ${totalRows - filteredRows.length}`);
-  
+  logSuccess('Filtered CSV created', outputFile);
+  logSuccess('Total rows', `${totalRows}`);
+  logSuccess('Matching rows', `${filteredRows.length}`);
+  logSuccess('Filtered out', `${totalRows - filteredRows.length}`);
+
   if (Object.keys(filters).length > 0) {
-    console.log(`✓ Filters applied: ${JSON.stringify(filters)}`);
+    logSuccess('Filters applied', JSON.stringify(filters));
   } else {
-    console.log(`⚠ No filters applied (all rows included)`);
+    logWarning('No filters applied (all rows included)');
   }
 } catch (err) {
-  console.error(`Error: ${err.message}`);
+  logError(err.message);
   process.exit(1);
 }
