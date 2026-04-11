@@ -36,7 +36,7 @@
 - [ ] **Incremental parsing**: parser re-reads entire `depenses.txt` every run; track last-processed line and only parse new entries
 - [ ] **Duplicate detection script**: hashes exist in DB but no `show-duplicates.js` to surface what would be skipped on next insert
 - [ ] **Rate usage audit**: no report of which dates had missing conversion rates or which fallback was applied
-- [ ] **Empty description validation**: parser accepts blank descriptions, producing uncategorizable rows
+- [x] **Empty description validation**: parser accepts blank descriptions, producing uncategorizable rows
 - [ ] **`stats.script.js` drops categories beyond 2 levels**: `exp.category.split('/')` only takes `[mainCat, subCat]` (line 259) — a 3rd level is silently ignored in all output
 - [ ] **Category totals use a single average rate**: `byCategory` computes one average across all rates (line 302–308) while `byMonth` uses per-date rates — same data, different rate logic, diverging totals
 - [x] **Forced categories flag silently ignored**: `pipeline.script.js` passes `--forced-categories-file` to `label.script.js` but `label.script.js` didn't declare that flag — now declared and wired to `forced-categories.config.json`; `category-patterns.config.json` removed and its entries merged into `forced-categories.config.json`

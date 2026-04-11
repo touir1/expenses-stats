@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { parseArgs } = require('../utils/cli-args.util');
 const { getDefaultPaths, resolvePath } = require('../utils/path-resolver.util');
-const { logSuccess, logError } = require('../utils/console-output.util');
+const { logSuccess, logError, logWarning } = require('../utils/console-output.util');
 const { hashExpense } = require('../utils/hash.util');
 
 // Parse command-line arguments
@@ -68,15 +68,19 @@ for (const line of lines) {
   if (currentDate) {
     // Try to match: amount + currency + description
     // Formats: "5dt coffee", "804.5 € loyer courbevoie"
-    
+
     // Format 1: amount followed by "dt" or "€" or " €"
     const expenseMatch = trimmed.match(/^([\d.]+)\s*(dt|€)\s+(.*)$/);
-    
+
     if (expenseMatch) {
       const amount = expenseMatch[1];
       const currency = expenseMatch[2] === '€' ? '€' : 'dt';
       const description = expenseMatch[3].trim();
-      
+
+      if (!description) {
+        logWarning(`Empty description`, `${currentDate}: ${amount}${currency}`);
+      }
+
       expenses.push({
         amount,
         currency,
